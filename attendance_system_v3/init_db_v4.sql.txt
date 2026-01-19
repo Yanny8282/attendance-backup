@@ -1,0 +1,91 @@
+DROP DATABASE IF EXISTS attendance_system_v2_db;
+CREATE DATABASE attendance_system_v2_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE attendance_system_v2_db;
+
+-- 1. ステータスマスタ
+CREATE TABLE status_codes (
+    status_id INT PRIMARY KEY,
+    status_name VARCHAR(50) NOT NULL
+);
+INSERT INTO status_codes VALUES (1, '出席'), (2, '遅刻'), (3, '欠席'), (4, '早退');
+
+-- 2. 授業マスタ
+CREATE TABLE courses (
+    course_id INT AUTO_INCREMENT PRIMARY KEY,
+    course_name VARCHAR(100) NOT NULL
+);
+INSERT INTO courses (course_name) VALUES 
+('数学'), ('英語'), ('物理'), ('化学'), ('歴史'), ('情報処理'), ('プログラミング'), ('卒業研究');
+
+-- 3. 生徒情報
+CREATE TABLE students (
+    student_id INT PRIMARY KEY,
+    student_name VARCHAR(100) NOT NULL,
+    class_id INT,
+    gender VARCHAR(10),
+    birthday DATE,
+    email VARCHAR(255)
+);
+-- テストデータ (必要に応じて変更)
+INSERT INTO students VALUES 
+(1001, '佐藤 太郎', 1, '男性', '2005-04-01', 'student1@test.com'),
+(1002, '鈴木 花子', 2, '女性', '2005-05-15', 'student2@test.com');
+
+-- 4. 生徒認証 (顔データはJSON文字列として保存)
+CREATE TABLE student_auth (
+    student_id INT PRIMARY KEY,
+    password VARCHAR(255) NOT NULL,
+    face_encoding TEXT, 
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+);
+INSERT INTO student_auth VALUES (1001, 'password', NULL), (1002, 'password', NULL);
+
+-- 5. 教員情報
+CREATE TABLE teachers (
+    teacher_id VARCHAR(50) PRIMARY KEY,
+    password VARCHAR(255) NOT NULL,
+    teacher_name VARCHAR(100),
+    email VARCHAR(255)
+);
+INSERT INTO teachers VALUES 
+('T001', 'password', '山田先生', 'teacher1@test.com'),
+('T002', 'password', '鈴木先生', 'teacher2@test.com');
+
+-- 6. 出席記録
+CREATE TABLE attendance_records (
+    record_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT,
+    attendance_date DATE NOT NULL,
+    course_id INT,
+    koma INT,
+    status_id INT,
+    attendance_time TIME,
+    reason TEXT,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id),
+    FOREIGN KEY (status_id) REFERENCES status_codes(status_id)
+);
+
+-- 7. チャット
+CREATE TABLE chat_messages (
+    message_id INT AUTO_INCREMENT PRIMARY KEY,
+    sender_id VARCHAR(50) NOT NULL,
+    receiver_id VARCHAR(50) NOT NULL,
+    message_content TEXT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_read BOOLEAN DEFAULT FALSE
+);
+
+-- 8. 授業予定 (カレンダー対応)
+CREATE TABLE class_schedule (
+    schedule_id INT AUTO_INCREMENT PRIMARY KEY,
+    class_id INT NOT NULL,
+    schedule_date DATE NOT NULL,
+    koma INT NOT NULL,
+    course_id INT,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
+    UNIQUE(class_id, schedule_date, koma)
+);
+-- 今日の予定テストデータ
+INSERT INTO class_schedule (class_id, schedule_date, koma, course_id) VALUES 
+(1, CURRENT_DATE, 1, 1), (1, CURRENT_DATE, 2, 2);

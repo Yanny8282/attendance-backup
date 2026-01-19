@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>生徒ダッシュボード</title>
+    <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/student_style.css">
+</head>
+<body>
+    <header>
+        <h1>出席管理システム</h1>
+        <div>
+            <span id="studentName">ゲスト</span>
+            <span style="font-size:0.8em; opacity:0.8;">(ID: <span id="studentId"></span>)</span>
+            <button id="logoutButton">ログアウト</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="tabs">
+            <button class="tab-button active" data-tab="schedule-view">ホーム</button>
+            <button class="tab-button" data-tab="checkin">出席打刻</button>
+            <button class="tab-button" data-tab="records">記録</button>
+            <button class="tab-button" data-tab="absence">欠席連絡</button>
+            <button class="tab-button" data-tab="chat">連絡</button>
+            <button class="tab-button" data-tab="register-face">顔登録</button>
+        </div>
+
+        <div id="schedule-view" class="tab-content active">
+            <h2>📅 授業予定</h2>
+            <input type="month" id="studentScheduleMonth">
+            <div id="scheduleContainer"></div>
+        </div>
+
+        <div id="checkin" class="tab-content">
+            <h2>📸 出席打刻</h2>
+            <p id="autoSelectInfo" style="color:#1565c0; font-weight:bold; margin-bottom:10px; font-size:0.9rem;"></p>
+            <div class="camera-container"><video id="videoCheckin" autoplay playsinline muted></video></div>
+            
+            <label>授業を選択</label>
+            <select id="courseSelectCheckin"></select>
+            
+            <label>時限を選択</label>
+            <select id="komaSelectCheckin"></select>
+            
+            <button id="checkInButton">出席する</button>
+            <p id="checkinMessage" class="message" style="display:none;"></p>
+        </div>
+
+        <div id="records" class="tab-content">
+            <h2>📜 出席記録</h2>
+            <div class="table-responsive">
+                <table id="attendanceTable">
+                    <thead>
+                        <tr>
+                            <th>日付</th>
+                            <th>コマ</th>
+                            <th>授業</th>
+                            <th>状態</th>
+                            <th>時間</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="absence" class="tab-content">
+            <h2>📩 欠席・遅刻の連絡</h2>
+            <label>対象日</label>
+            <input type="date" id="absenceDate">
+            
+            <p style="margin: 15px 0 10px; font-weight:bold; font-size:0.95rem;">連絡するコマと内容:</p>
+            
+            <div class="absence-row">
+                <span>1限</span>
+                <select class="absence-status-select" data-koma="1">
+                    <option value="">(選択なし - 出席)</option>
+                    <option value="2">遅刻</option>
+                    <option value="3">欠席</option>
+                    <option value="4">早退</option>
+                </select>
+            </div>
+            <div class="absence-row">
+                <span>2限</span>
+                <select class="absence-status-select" data-koma="2">
+                    <option value="">(選択なし - 出席)</option>
+                    <option value="2">遅刻</option>
+                    <option value="3">欠席</option>
+                    <option value="4">早退</option>
+                </select>
+            </div>
+            <div class="absence-row">
+                <span>3限</span>
+                <select class="absence-status-select" data-koma="3">
+                    <option value="">(選択なし - 出席)</option>
+                    <option value="2">遅刻</option>
+                    <option value="3">欠席</option>
+                    <option value="4">早退</option>
+                </select>
+            </div>
+            <div class="absence-row">
+                <span>4限</span>
+                <select class="absence-status-select" data-koma="4">
+                    <option value="">(選択なし - 出席)</option>
+                    <option value="2">遅刻</option>
+                    <option value="3">欠席</option>
+                    <option value="4">早退</option>
+                </select>
+            </div>
+
+            <label style="margin-top:15px;">理由</label>
+            <input type="text" id="absenceReason" placeholder="例: 電車遅延、体調不良など">
+            <button id="submitAbsenceButton" style="background-color: #ff9800; margin-top:10px;">送信する</button>
+        </div>
+
+        <div id="chat" class="tab-content">
+            <h2>💬 先生への連絡</h2>
+            <label>宛先の先生</label>
+            <select id="chatTeacherSelect"></select>
+            
+            <div id="chatWindow" class="chat-window"></div>
+            
+            <div style="display:flex; gap:10px;">
+                <input type="text" id="chatInput" placeholder="メッセージ..." style="flex:1; margin-bottom:0;">
+                <button id="sendChatButton" style="width:auto; padding:0 20px;">送信</button>
+            </div>
+        </div>
+
+        <div id="register-face" class="tab-content">
+            <h2>👤 顔データの登録</h2>
+            <p style="font-size:0.9rem; color:#666; margin-bottom:10px;">カメラを見て「登録」ボタンを押してください。</p>
+            <div class="camera-container"><video id="videoRegister" autoplay playsinline muted></video></div>
+            <button id="registerFaceButton">顔を登録する</button>
+        </div>
+    </div>
+    
+    <script src="../js/libs/face-api.min.js"></script>
+    <script src="../js/student.js?v=2"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ログイン | 出席管理システム</title>
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .login-card { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 300px; text-align: center; }
+        input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; }
+        button { width: 100%; padding: 10px; font-size: 1.1em; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2>ログイン</h2>
+        <input type="text" id="id" placeholder="ID (生徒:数字4桁 / 教員:英数)">
+        <input type="password" id="password" placeholder="パスワード">
+        <button id="loginButton">ログイン</button>
+        <p id="message" style="color: red; margin-top: 15px;"></p>
+    </div>
+    <script src="../js/login.js"></script>
+</body>
+</html>

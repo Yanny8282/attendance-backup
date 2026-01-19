@@ -1,0 +1,115 @@
+@charset "UTF-8";
+
+/* =========================================
+   管理テーブルの拡張 (Admin Tables)
+   ========================================= */
+/* 行ホバー時の強調 */
+#realtimeTable tbody tr:hover,
+#studentListTable tbody tr:hover,
+#teacherListTable tbody tr:hover {
+    background-color: #f1f3f5;
+}
+
+/* 操作ボタン（編集・削除） */
+.action-button {
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    margin-right: 5px;
+}
+
+.edit-btn {
+    background-color: #17a2b8; /* 水色 */
+}
+.edit-btn:hover {
+    background-color: #138496;
+}
+
+.delete-btn {
+    background-color: #dc3545; /* 赤 */
+}
+.delete-btn:hover {
+    background-color: #c82333;
+}
+
+/* =========================================
+   入力フォームカード (CRUD Forms)
+   ========================================= */
+/* 新規追加・編集フォームの囲い */
+#studentForm, #teacherForm {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
+}
+
+#studentForm input,
+#teacherForm input {
+    margin-right: 10px;
+}
+
+/* =========================================
+   時間割・カレンダー管理
+   ========================================= */
+/* 複数選択モードのコントローラー */
+#multiControls {
+    display: inline-block;
+    background-color: #fff3cd;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid #ffeeba;
+}
+
+/* カレンダー内のスロット選択状態 */
+/* teacher.js で style 属性を直接操作していますが、基本スタイルはこちら */
+.mini-badge:hover {
+    opacity: 0.8;
+}
+
+/* =========================================
+   モーダルウィンドウ (Modals)
+   ========================================= */
+/* モーダルの背景オーバーレイ（画面全体を暗くする） */
+/* ※JSで制御するため、ここでは表示時のスタイル定義 */
+/* 実際のHTMLでは inline style で制御されていますが、クラス化する場合用 */
+
+/* モーダル本体のデザイン */
+#statusChangeModal, #schEditModal {
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    border-radius: 8px;
+    width: 300px;
+    text-align: center;
+}
+
+#statusChangeModal h3, #schEditModal h3 {
+    margin-top: 0;
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+#statusChangeModal select, #schEditModal select {
+    width: 80%;
+    margin-bottom: 20px;
+    font-size: 1.1rem;
+    padding: 8px;
+}
+
+#statusChangeModal button, #schEditModal button {
+    margin: 5px;
+    min-width: 80px;
+}
+
+/* =========================================
+   リアルタイム確認画面
+   ========================================= */
+/* 変更ボタンを目立たせる */
+#realtimeTable button {
+    background-color: #6c757d;
+    font-size: 0.8rem;
+    padding: 3px 8px;
+}
+#realtimeTable button:hover {
+    background-color: #5a6268;
+}

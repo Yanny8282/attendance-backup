@@ -1,0 +1,330 @@
+/* ベーススタイル */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f0f2f5;
+    color: #333;
+    line-height: 1.6;
+    -webkit-text-size-adjust: 100%; /* iOSでの文字サイズ自動調整を無効化 */
+}
+
+/* ヘッダー */
+header {
+    background-color: #4CAF50;
+    color: white;
+    padding: 15px;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+header div {
+    font-size: 0.9rem;
+    margin-top: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+#logoutButton {
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.5);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+/* メインコンテナ */
+.container {
+    padding: 15px;
+    max-width: 600px; /* スマホ・タブレット向けに幅を制限 */
+    margin: 0 auto;
+    padding-bottom: 80px; /* 下部の余白 */
+}
+
+/* タブナビゲーション (横スクロール対応) */
+.tabs {
+    display: flex;
+    overflow-x: auto;
+    white-space: nowrap;
+    background: white;
+    padding: 10px 5px;
+    margin: -15px -15px 15px -15px; /* 親コンテナのpaddingを相殺 */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    -webkit-overflow-scrolling: touch; /* iOSでのスクロールを滑らかに */
+}
+
+.tab-button {
+    flex: 0 0 auto; /* 縮小させない */
+    padding: 8px 16px;
+    margin: 0 5px;
+    border: 1px solid #ddd;
+    background: #f9f9f9;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.tab-button.active {
+    background-color: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+    font-weight: bold;
+}
+
+/* コンテンツエリア */
+.tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+h2 {
+    font-size: 1.1rem;
+    color: #4CAF50;
+    border-left: 4px solid #4CAF50;
+    padding-left: 10px;
+    margin-bottom: 15px;
+    margin-top: 0;
+}
+
+/* カメラ・ビデオ */
+.camera-container {
+    width: 100%;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 15px;
+    position: relative;
+    padding-top: 75%; /* 4:3 アスペクト比維持 */
+}
+
+video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* 鏡像表示 */
+}
+
+/* フォーム要素 (スマホ最適化) */
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    font-size: 0.95rem;
+}
+
+input[type="text"],
+input[type="date"],
+input[type="month"],
+input[type="number"],
+select,
+textarea {
+    width: 100%;
+    padding: 12px; /* タップ領域を広く */
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 1rem; /* 16px以上にするとiOSでズームされない */
+    box-sizing: border-box;
+    background-color: white;
+    appearance: none; /* デフォルトのスタイルを解除 */
+}
+
+button {
+    width: 100%;
+    padding: 14px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: background 0.2s;
+    touch-action: manipulation; /* タップの遅延をなくす */
+}
+
+button:active {
+    background-color: #388E3C;
+    transform: translateY(1px);
+}
+
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+/* メッセージ表示 */
+.message {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 5px;
+    text-align: center;
+    font-weight: bold;
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+/* 欠席連絡フォームの調整 */
+.absence-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    background: white;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #eee;
+}
+
+.absence-row span {
+    width: 50px;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.absence-row select {
+    margin-bottom: 0; /* ラッパー内の余白調整 */
+    border: 1px solid #ddd;
+}
+
+/* チャットウィンドウ */
+.chat-window {
+    height: 350px; /* スマホで見やすい高さ */
+    overflow-y: scroll;
+    border: 1px solid #ddd;
+    padding: 15px;
+    background: #e5ddd5; /* チャットアプリ風背景色 */
+    margin-bottom: 15px;
+    border-radius: 8px;
+}
+
+.message-bubble {
+    max-width: 80%;
+    margin-bottom: 10px;
+    padding: 10px 14px;
+    border-radius: 18px;
+    position: relative;
+    word-wrap: break-word;
+    font-size: 0.95rem;
+}
+
+.message-bubble.mine {
+    background-color: #dcf8c6;
+    margin-left: auto;
+    border-bottom-right-radius: 4px;
+}
+
+.message-bubble.theirs {
+    background-color: white;
+    margin-right: auto;
+    border-bottom-left-radius: 4px;
+}
+
+.message-time {
+    font-size: 0.7rem;
+    color: #999;
+    text-align: right;
+    margin-top: 4px;
+}
+
+/* テーブル (横スクロール対応) */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    min-width: 300px; /* スマホでも極端に潰れないように */
+}
+
+th, td {
+    padding: 12px 10px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+    white-space: nowrap; /* 改行させない */
+    font-size: 0.9rem;
+}
+
+th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+    color: #555;
+}
+
+/* カレンダー (簡易表示) */
+.month-calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    background: #ddd;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.month-day-header {
+    background: #f0f0f0;
+    padding: 5px;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.month-day {
+    background: white;
+    min-height: 60px; /* スマホ用に高さを確保 */
+    padding: 2px;
+    font-size: 0.8rem;
+    position: relative;
+}
+
+.day-number {
+    font-weight: bold;
+    font-size: 0.9rem;
+    margin-bottom: 2px;
+    display: block;
+}
+
+.mini-badge {
+    font-size: 0.65rem;
+    background: #e3f2fd;
+    color: #1565c0;
+    padding: 1px 3px;
+    border-radius: 3px;
+    margin-bottom: 1px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

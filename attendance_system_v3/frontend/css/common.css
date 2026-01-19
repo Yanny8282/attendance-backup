@@ -1,0 +1,312 @@
+@charset "UTF-8";
+
+/* =========================================
+   基本設定 (Base)
+   ========================================= */
+body {
+    font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+    background-color: #f4f7f6;
+    color: #333;
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+}
+
+/* コンテナ: 画面中央に配置する白いカード */
+.container {
+    width: 95%;
+    max-width: 1200px;
+    margin: 20px auto;
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    min-height: 80vh;
+}
+
+/* =========================================
+   ヘッダー (Header)
+   ========================================= */
+header {
+    background-color: #343a40;
+    color: #fff;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between; /* タイトルとボタンを左右に配置 */
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.4rem;
+}
+
+header div {
+    font-size: 0.9rem;
+}
+
+header span {
+    font-weight: bold;
+    margin-right: 10px;
+    color: #ffd700; /* IDなどを黄色で強調 */
+}
+
+/* =========================================
+   ボタン & フォーム (UI Elements)
+   ========================================= */
+button {
+    cursor: pointer;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    background-color: #007bff;
+    color: white;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+/* ログアウトボタンなど */
+#logoutButton {
+    background-color: #dc3545;
+}
+#logoutButton:hover {
+    background-color: #a71d2a;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+input[type="month"],
+input[type="email"],
+select {
+    padding: 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 1rem;
+    margin: 5px 0;
+    box-sizing: border-box; /* パディングを含めた幅計算 */
+}
+
+/* =========================================
+   タブナビゲーション (Tabs)
+   ========================================= */
+.tabs {
+    display: flex;
+    flex-wrap: wrap;
+    border-bottom: 2px solid #dee2e6;
+    margin-bottom: 20px;
+    gap: 5px;
+}
+
+.tab-button {
+    background: none;
+    border: none;
+    padding: 10px 15px;
+    font-size: 1rem;
+    color: #6c757d;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+}
+
+.tab-button:hover {
+    color: #495057;
+    background-color: #f8f9fa;
+}
+
+.tab-button.active {
+    color: #007bff;
+    border-bottom: 3px solid #007bff;
+    font-weight: bold;
+}
+
+.tab-content {
+    display: none; /* デフォルト非表示 */
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.tab-content.active {
+    display: block; /* アクティブ時表示 */
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* =========================================
+   テーブル (Tables)
+   ========================================= */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    font-size: 0.95rem;
+}
+
+th, td {
+    border: 1px solid #dee2e6;
+    padding: 10px;
+    text-align: left;
+}
+
+th {
+    background-color: #e9ecef;
+    font-weight: bold;
+}
+
+tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+
+/* ステータス色分け */
+.status-present { color: #28a745; font-weight: bold; } /* 出席: 緑 */
+.status-late    { color: #fd7e14; font-weight: bold; } /* 遅刻: オレンジ */
+.status-absent  { color: #dc3545; font-weight: bold; } /* 欠席: 赤 */
+.status-early   { color: #17a2b8; font-weight: bold; } /* 早退: 水色 */
+
+/* =========================================
+   チャット画面 (Chat UI)
+   ========================================= */
+.chat-window {
+    height: 400px;
+    overflow-y: scroll;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 10px;
+    background-color: #eef1f5;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-bubble {
+    padding: 10px 15px;
+    margin: 5px 0;
+    border-radius: 15px;
+    max-width: 70%;
+    position: relative;
+    word-wrap: break-word;
+}
+
+/* 自分のメッセージ */
+.mine {
+    background-color: #dcf8c6; /* LINE風の緑 */
+    align-self: flex-end;
+    text-align: right;
+    border-bottom-right-radius: 2px;
+}
+
+/* 相手のメッセージ */
+.theirs {
+    background-color: #fff;
+    align-self: flex-start;
+    border: 1px solid #ddd;
+    border-bottom-left-radius: 2px;
+}
+
+.message-time {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 4px;
+    text-align: right;
+}
+
+/* =========================================
+   カレンダー (Calendar Grid)
+   ========================================= */
+/* 月間カレンダーのグリッド設定 */
+.month-calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr); /* 7等分 */
+    gap: 1px;
+    background-color: #dee2e6; /* 枠線の色 */
+    border: 1px solid #dee2e6;
+}
+
+.month-day-header {
+    background-color: #f1f3f5;
+    padding: 8px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+/* 各日付セル */
+.month-day {
+    background-color: #fff;
+    min-height: 100px;
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.day-number {
+    font-weight: bold;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 2px;
+}
+
+/* カレンダー内の授業バッジ */
+.mini-badge {
+    font-size: 0.75rem;
+    padding: 2px 4px;
+    margin-bottom: 2px;
+    border-radius: 3px;
+    background-color: #e3f2fd;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+
+/* ステータス別バッジ背景色 */
+.bg-present { background-color: #d4edda; color: #155724; }
+.bg-late    { background-color: #fff3cd; color: #856404; }
+.bg-absent  { background-color: #f8d7da; color: #721c24; }
+.bg-early   { background-color: #d1ecf1; color: #0c5460; }
+
+/* 週間カレンダー用テーブル調整 */
+.week-calendar th {
+    width: 15%; /* 曜日列の幅 */
+}
+.cal-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 0.9rem;
+}
+.cal-status {
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: white;
+    font-size: 0.8rem;
+    margin-bottom: 3px;
+}
+.cal-course {
+    font-weight: bold;
+}
+
+/* =========================================
+   その他ユーティリティ
+   ========================================= */
+.message {
+    margin-top: 10px;
+    font-weight: bold;
+    min-height: 1.5em; /* ガタつき防止 */
+}
