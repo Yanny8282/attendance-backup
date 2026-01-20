@@ -4,7 +4,7 @@
 DB_CONFIG = {
     'user': 'root',
     'password': 'password',  # ★MySQLのパスワード
-    'host': '127.0.0.1',
+    'host': 'attendance-db.cxa46ccmmfne.ap-northeast-1.rds.amazonaws.com',
     'database': 'attendance_system_v2_db',
     'charset': 'utf8mb4'
 }
