@@ -478,4 +478,4 @@ def chat_history():
 
 if __name__ == '__main__':
     PERIOD_START_TIMES = { 1: "09:10", 2: "11:00", 3: "13:30", 4: "15:15" }
-    app.run(host='0.0.0.0', port=5001, debug=True, ssl_context='adhoc')
+    app.run(host='0.0.0.0', port=443, debug=True, ssl_context='adhoc')
