@@ -1,6 +1,7 @@
 #-*- coding:utf-8 -*-
 from flask import Flask, request, jsonify, redirect
 from flask_cors import CORS
+from flask_basicauth import BasicAuth
 from db import execute_query
 import datetime
 from datetime import timedelta
@@ -29,6 +30,32 @@ app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
 CORS(app)
 
 # ==========================================
+# ▼▼▼ Basic認証の設定 ▼▼▼
+# ==========================================
+app.config['BASIC_AUTH_USERNAME'] = 'admin'        # ユーザー名
+app.config['BASIC_AUTH_PASSWORD'] = 'sotsuken2026' # パスワード
+app.config['BASIC_AUTH_FORCE'] = True
+basic_auth = BasicAuth(app)
+
+# ==========================================
+# ▼▼▼ ★追加修正: 定数リスト ▼▼▼
+# ==========================================
+# これが抜けていたためエラーになっていました
+STATUS_NAMES = {
+    1: "出席",
+    2: "遅刻",
+    3: "欠席",
+    4: "早退"
+}
+
+PERIOD_START_TIMES = { 
+    1: "09:10", 
+    2: "11:00", 
+    3: "13:30", 
+    4: "15:15" 
+}
+
+# ==========================================
 # ▼▼▼ ルート設定 ▼▼▼
 # ==========================================
 @app.route('/')
@@ -55,12 +82,11 @@ def send_email(to_email, subject, body):
     except Exception as e:
         print(f"Mail Error: {e}")
 
-# --- 距離計算（★修正箇所★） ---
+# --- 距離計算 ---
 def calc_geo_distance(lat1, lon1, lat2, lon2):
     R = 6371000 # 地球の半径(m)
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
-    # ★以前のエラー箇所を修正: 緯度差と経度差を正しく別々に計算
     dphi = math.radians(lat2 - lat1)
     dlam = math.radians(lon2 - lon1)
     
@@ -164,6 +190,7 @@ def check_in():
 
         now = datetime.datetime.now()
         today = datetime.date.today().isoformat()
+        
         start_str = PERIOD_START_TIMES.get(int(koma), "00:00")
         start_dt = datetime.datetime.combine(datetime.date.today(), datetime.datetime.strptime(start_str, "%H:%M").time())
         
@@ -477,5 +504,4 @@ def chat_history():
     return jsonify({'success': True, 'messages': res})
 
 if __name__ == '__main__':
-    PERIOD_START_TIMES = { 1: "09:10", 2: "11:00", 3: "13:30", 4: "15:15" }
     app.run(host='0.0.0.0', port=443, debug=True, ssl_context='adhoc')
