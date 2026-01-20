@@ -2,7 +2,7 @@
 
 # DB接続設定
 DB_CONFIG = {
-    'user': 'root',
+    'user': 'admin',
     'password': 'password',  # ★MySQLのパスワード
     'host': 'attendance-db.cxa46ccmmfne.ap-northeast-1.rds.amazonaws.com',
     'database': 'attendance_system_v2_db',
