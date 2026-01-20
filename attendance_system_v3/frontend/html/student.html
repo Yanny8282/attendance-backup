@@ -9,24 +9,38 @@
 </head>
 <body>
     <header>
-        <h1>出席管理システム</h1>
-        <div>
-            <span id="studentName">ゲスト</span>
-            <span style="font-size:0.8em; opacity:0.8;">(ID: <span id="studentId"></span>)</span>
-            <button id="logoutButton">ログアウト</button>
+    <div class="hamburger-menu" id="hamburgerMenu">
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
+    <h1>出席管理システム</h1>
+    <div class="header-right">
+        <div class="user-details">
+            <span id="studentIdDisplay">ID: <span id="studentId">12345</span></span>
+            <span id="studentName">ゲスト 様</span>
         </div>
-    </header>
+        </div>
+</header>
+
+<nav class="side-nav" id="sideNav">
+    <div class="nav-header">メニュー</div>
+    <div class="nav-links">
+        <button class="tab-button active" data-tab="schedule-view">📅 ホーム</button>
+        <button class="tab-button" data-tab="checkin">📸 出席打刻</button>
+        <button class="tab-button" data-tab="records">📜 出席記録</button>
+        <button class="tab-button" data-tab="absence">📩 欠席連絡</button>
+        <button class="tab-button" data-tab="chat">💬 先生へ連絡</button>
+        <button class="tab-button" data-tab="register-face">👤 顔登録</button>
+    </div>
+    <div class="nav-footer">
+        <button id="logoutButton" class="logout-menu-button">🚪 ログアウト</button>
+    </div>
+</nav>
+
+    <div class="nav-overlay" id="navOverlay"></div>
 
     <div class="container">
-        <div class="tabs">
-            <button class="tab-button active" data-tab="schedule-view">ホーム</button>
-            <button class="tab-button" data-tab="checkin">出席打刻</button>
-            <button class="tab-button" data-tab="records">記録</button>
-            <button class="tab-button" data-tab="absence">欠席連絡</button>
-            <button class="tab-button" data-tab="chat">連絡</button>
-            <button class="tab-button" data-tab="register-face">顔登録</button>
-        </div>
-
         <div id="schedule-view" class="tab-content active">
             <h2>📅 授業予定</h2>
             <input type="month" id="studentScheduleMonth">
@@ -37,13 +51,10 @@
             <h2>📸 出席打刻</h2>
             <p id="autoSelectInfo" style="color:#1565c0; font-weight:bold; margin-bottom:10px; font-size:0.9rem;"></p>
             <div class="camera-container"><video id="videoCheckin" autoplay playsinline muted></video></div>
-            
             <label>授業を選択</label>
             <select id="courseSelectCheckin"></select>
-            
             <label>時限を選択</label>
             <select id="komaSelectCheckin"></select>
-            
             <button id="checkInButton">出席する</button>
             <p id="checkinMessage" class="message" style="display:none;"></p>
         </div>
@@ -70,46 +81,11 @@
             <h2>📩 欠席・遅刻の連絡</h2>
             <label>対象日</label>
             <input type="date" id="absenceDate">
-            
             <p style="margin: 15px 0 10px; font-weight:bold; font-size:0.95rem;">連絡するコマと内容:</p>
-            
-            <div class="absence-row">
-                <span>1限</span>
-                <select class="absence-status-select" data-koma="1">
-                    <option value="">(選択なし - 出席)</option>
-                    <option value="2">遅刻</option>
-                    <option value="3">欠席</option>
-                    <option value="4">早退</option>
-                </select>
-            </div>
-            <div class="absence-row">
-                <span>2限</span>
-                <select class="absence-status-select" data-koma="2">
-                    <option value="">(選択なし - 出席)</option>
-                    <option value="2">遅刻</option>
-                    <option value="3">欠席</option>
-                    <option value="4">早退</option>
-                </select>
-            </div>
-            <div class="absence-row">
-                <span>3限</span>
-                <select class="absence-status-select" data-koma="3">
-                    <option value="">(選択なし - 出席)</option>
-                    <option value="2">遅刻</option>
-                    <option value="3">欠席</option>
-                    <option value="4">早退</option>
-                </select>
-            </div>
-            <div class="absence-row">
-                <span>4限</span>
-                <select class="absence-status-select" data-koma="4">
-                    <option value="">(選択なし - 出席)</option>
-                    <option value="2">遅刻</option>
-                    <option value="3">欠席</option>
-                    <option value="4">早退</option>
-                </select>
-            </div>
-
+            <div class="absence-row"><span>1限</span><select class="absence-status-select" data-koma="1"><option value="">(選択なし - 出席)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></div>
+            <div class="absence-row"><span>2限</span><select class="absence-status-select" data-koma="2"><option value="">(選択なし - 出席)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></div>
+            <div class="absence-row"><span>3限</span><select class="absence-status-select" data-koma="3"><option value="">(選択なし - 出席)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></div>
+            <div class="absence-row"><span>4限</span><select class="absence-status-select" data-koma="4"><option value="">(選択なし - 出席)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></div>
             <label style="margin-top:15px;">理由</label>
             <input type="text" id="absenceReason" placeholder="例: 電車遅延、体調不良など">
             <button id="submitAbsenceButton" style="background-color: #ff9800; margin-top:10px;">送信する</button>
@@ -119,9 +95,7 @@
             <h2>💬 先生への連絡</h2>
             <label>宛先の先生</label>
             <select id="chatTeacherSelect"></select>
-            
             <div id="chatWindow" class="chat-window"></div>
-            
             <div style="display:flex; gap:10px;">
                 <input type="text" id="chatInput" placeholder="メッセージ..." style="flex:1; margin-bottom:0;">
                 <button id="sendChatButton" style="width:auto; padding:0 20px;">送信</button>

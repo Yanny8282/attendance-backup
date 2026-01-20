@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     setupTabs();
+    setupHamburgerMenu(); // 追加: ハンバーガーメニューの開閉設定
     setupEvents(sid);
     await loadStudentInfo(sid);
     initializeDropdowns();
@@ -26,17 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('studentScheduleMonth').value = `${now.getFullYear()}-${('0'+(now.getMonth()+1)).slice(-2)}`;
     loadMySchedule();
 
-    if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' && location.protocol !== 'https:') {
-        const warning = document.createElement('div');
-        warning.style.background = '#ffeb3b';
-        warning.style.padding = '10px';
-        warning.style.textAlign = 'center';
-        warning.style.fontSize = '0.8rem';
-        warning.innerHTML = '⚠️ 注意: スマホ等の別端末からHTTPでアクセスしている場合、<b>カメラやGPSが機能しない</b>ことがあります。';
-        document.querySelector('.container').prepend(warning);
-    }
-
-    console.log("Loading AI Models...");
+    // AI Models Loading...
     try {
         await faceapi.nets.ssdMobilenetv1.loadFromUri('../models');
         await faceapi.nets.faceLandmark68Net.loadFromUri('../models');
@@ -47,17 +38,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+// ハンバーガーメニューの開閉制御
+function setupHamburgerMenu() {
+    const hamburger = document.getElementById('hamburgerMenu');
+    const sideNav = document.getElementById('sideNav');
+    const overlay = document.getElementById('navOverlay');
+
+    const toggle = () => {
+        sideNav.classList.toggle('open');
+        overlay.classList.toggle('show');
+    };
+
+    hamburger.addEventListener('click', toggle);
+    overlay.addEventListener('click', toggle);
+}
+
 function setupTabs() {
+    const sideNav = document.getElementById('sideNav');
+    const overlay = document.getElementById('navOverlay');
+
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.addEventListener('click', () => {
+            // メニューを閉じる
+            sideNav.classList.remove('open');
+            overlay.classList.remove('show');
+
+            // タブ切り替え
             document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
-            document.getElementById(btn.dataset.tab).style.display = 'block';
+            const targetContent = document.getElementById(btn.dataset.tab);
+            if(targetContent) targetContent.style.display = 'block';
             
             stopCamera();
             if(chatInterval) clearInterval(chatInterval);
 
+            // 各機能の初期化
             if(btn.dataset.tab === 'checkin') { startCamera('videoCheckin'); autoSelectCourse(); }
             if(btn.dataset.tab === 'register-face') { startCamera('videoRegister'); }
             if(btn.dataset.tab === 'chat') { loadTeacherList(); startChatPolling(); }
@@ -95,8 +111,12 @@ async function getFaceDescriptor(vidId) {
 }
 
 function setupEvents(sid) {
-    document.getElementById('logoutButton').onclick = () => { sessionStorage.clear(); location.href = '../html/index.html'; };
-
+    document.getElementById('logoutButton').onclick = () => {
+        if(confirm("ログアウトしますか？")) {
+            sessionStorage.clear();
+            location.href = '../html/index.html';
+        }
+    };
     document.getElementById('registerFaceButton').onclick = async () => {
         const btn = document.getElementById('registerFaceButton');
         btn.disabled = true;
@@ -131,7 +151,6 @@ function setupEvents(sid) {
             return;
         }
 
-        // ★変更: タイムアウト対策のため設定を緩和
         navigator.geolocation.getCurrentPosition(async (pos) => {
             try {
                 msg.textContent = "顔解析中...";
@@ -164,13 +183,12 @@ function setupEvents(sid) {
             let errMsg = "GPSエラー";
             if (err.code === 1) errMsg = "⚠️ 位置情報の許可が必要です";
             else if (err.code === 2) errMsg = "⚠️ 位置情報が取得できません";
-            else if (err.code === 3) errMsg = "⚠️ タイムアウトしました(再試行してください)";
-            
+            else if (err.code === 3) errMsg = "⚠️ タイムアウトしました";
             msg.textContent = errMsg; 
             btn.disabled = false; 
         }, {
-            enableHighAccuracy: false, // ★変更: trueだと室内で失敗しやすいためfalseに変更
-            timeout: 30000,            // ★変更: 待ち時間を30秒に延長
+            enableHighAccuracy: false,
+            timeout: 30000,
             maximumAge: 0
         });
     };
@@ -233,6 +251,7 @@ async function loadStudentInfo(id) {
         }
     } catch(e) { console.error("Login Check Error", e); }
 }
+
 async function initializeDropdowns() {
     try {
         const res = await fetch(`${API_BASE_URL}/get_course_koma`);
@@ -275,7 +294,9 @@ async function autoSelectCourse() {
 
 async function loadMySchedule() {
     if(!myClassId) return;
-    const ym = document.getElementById('studentScheduleMonth').value.split('-');
+    const val = document.getElementById('studentScheduleMonth').value;
+    if(!val) return;
+    const ym = val.split('-');
     const res = await fetch(`${API_BASE_URL}/get_monthly_schedule?class_id=${myClassId}&year=${ym[0]}&month=${ym[1]}`);
     const d = await res.json();
     const con = document.getElementById('scheduleContainer');
@@ -296,7 +317,8 @@ async function loadMySchedule() {
 }
 
 async function loadRecords() {
-    const res = await fetch(`${API_BASE_URL}/student_records?student_id=${sessionStorage.getItem('user_id')}`);
+    const sid = sessionStorage.getItem('user_id');
+    const res = await fetch(`${API_BASE_URL}/student_records?student_id=${sid}`);
     const d = await res.json();
     const tb = document.querySelector('#attendanceTable tbody');
     tb.innerHTML = '';
@@ -316,6 +338,7 @@ async function loadTeacherList() {
     });
     loadChatHistory();
 }
+
 async function loadChatHistory() {
     const tid = document.getElementById('chatTeacherSelect').value;
     const my = sessionStorage.getItem('user_id');
@@ -329,6 +352,7 @@ async function loadChatHistory() {
     });
     w.scrollTop = w.scrollHeight;
 }
+
 function startChatPolling() {
     loadChatHistory();
     if(chatInterval) clearInterval(chatInterval);
