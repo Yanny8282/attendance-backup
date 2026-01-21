@@ -197,11 +197,18 @@ def check_in():
         if now > start_dt + timedelta(minutes=30): st_id = 3
         elif now > start_dt: st_id = 2
 
-        exist = execute_query("SELECT * FROM attendance_records WHERE student_id=%s AND attendance_date=%s AND course_id=%s AND koma=%s", (sid, today, cid, koma), fetch=True)
+        # ★修正: 科目(course_id)に関わらず、その日付・そのコマにレコードがあれば重複とみなす
+        exist = execute_query("SELECT * FROM attendance_records WHERE student_id=%s AND attendance_date=%s AND koma=%s", (sid, today, koma), fetch=True)
+        
         if exist:
-            # ★変更: すでにデータがある場合は、重複としてエラーを返す（上書きしない）
             status_now = STATUS_NAMES.get(exist[0]['status_id'], '登録済')
-            return jsonify({'success': False, 'message': f'すでに「{status_now}」として登録されています'}), 400
+            # 既存のレコードの科目名を取得してメッセージに出す（親切設計）
+            existing_course_name = "不明な授業"
+            if exist[0]['course_id']:
+                c_info = execute_query("SELECT course_name FROM courses WHERE course_id=%s", (exist[0]['course_id'],), fetch=True)
+                if c_info: existing_course_name = c_info[0]['course_name']
+            
+            return jsonify({'success': False, 'message': f'すでに{koma}限は「{existing_course_name}」で登録されています'}), 400
         else:
             execute_query("INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, attendance_time) VALUES (%s,%s,%s,%s,%s,%s)", (sid, today, cid, koma, st_id, now.strftime('%H:%M:%S')))
         
@@ -229,7 +236,7 @@ def report_absence():
 
     mail_details = [] 
     count = 0
-    skipped_count = 0 # 重複スキップ用
+    skipped_count = 0 
 
     for item in reports:
         k = item['koma']
@@ -244,21 +251,18 @@ def report_absence():
                 course_id = sch[0]['course_id']
                 course_name = sch[0]['course_name']
         
-        # 重複チェック
+        # 重複チェック（こちらも科目に関係なくコマでチェック済み）
         exist = execute_query("SELECT record_id, status_id FROM attendance_records WHERE student_id=%s AND attendance_date=%s AND koma=%s", (sid, date, k), fetch=True)
         
         if exist:
-            # ★変更: すでにデータがある場合はスキップする
             print(f"Skip duplicate: {date} Koma {k} is already {exist[0]['status_id']}")
             skipped_count += 1
             continue 
 
-        # データがない場合のみ新規登録
         mail_details.append(f"・{k}限 ({course_name}): {st_name}")
         execute_query("INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, reason) VALUES (%s,%s,%s,%s,%s,%s)", (sid, date, course_id, k, st_id, reason))
         count += 1
 
-    # メール送信（実際に登録できたものがあれば送る）
     if count > 0 and class_id:
         teachers_to_notify = execute_query("SELECT t.email, t.teacher_name FROM teachers t JOIN teacher_assignments ta ON t.teacher_id = ta.teacher_id WHERE ta.class_id=%s", (class_id,), fetch=True)
         
@@ -339,7 +343,6 @@ def get_student_list():
 @app.route(f'{API_BASE_URL}/add_student', methods=['POST'])
 def add_student():
     d=request.json
-    # ★追加: サーバー側バリデーション
     if not d.get('student_id') or not d.get('student_name') or not d.get('class_id') or not d.get('gender') or not d.get('birthday') or not d.get('email') or not d.get('password'):
          return jsonify({'success': False, 'message': '全ての項目を入力してください'}), 400
 
@@ -351,7 +354,6 @@ def add_student():
 @app.route(f'{API_BASE_URL}/update_student', methods=['POST'])
 def update_student():
     d=request.json
-    # ★追加: サーバー側バリデーション
     if not d.get('student_name') or not d.get('class_id') or not d.get('gender') or not d.get('birthday') or not d.get('email'):
          return jsonify({'success': False, 'message': '全ての項目を入力してください'}), 400
 
@@ -375,7 +377,6 @@ def get_teacher_list():
 @app.route(f'{API_BASE_URL}/add_teacher', methods=['POST'])
 def add_teacher():
     d = request.json
-    # ★追加: サーバー側バリデーション
     if not d.get('teacher_id') or not d.get('teacher_name') or not d.get('email') or not d.get('password'):
         return jsonify({'success': False, 'message': '全ての項目を入力してください'}), 400
 
@@ -389,7 +390,6 @@ def add_teacher():
 @app.route(f'{API_BASE_URL}/update_teacher', methods=['POST'])
 def update_teacher():
     d = request.json
-    # ★追加: サーバー側バリデーション
     if not d.get('teacher_name') or not d.get('email'):
         return jsonify({'success': False, 'message': '全ての項目を入力してください'}), 400
 
