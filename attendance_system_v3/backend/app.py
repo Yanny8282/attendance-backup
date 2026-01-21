@@ -38,9 +38,8 @@ app.config['BASIC_AUTH_FORCE'] = True
 basic_auth = BasicAuth(app)
 
 # ==========================================
-# ▼▼▼ ★追加修正: 定数リスト ▼▼▼
+# ▼▼▼ 定数リスト ▼▼▼
 # ==========================================
-# これが抜けていたためエラーになっていました
 STATUS_NAMES = {
     1: "出席",
     2: "遅刻",
@@ -429,6 +428,7 @@ def get_absence_reports():
     res = execute_query(q+" ORDER BY ar.attendance_date DESC, s.student_id ASC, ar.koma ASC", tuple(p), fetch=True)
     for r in res: 
         r['attendance_date'] = r['attendance_date'].isoformat()
+        if r.get('attendance_time'): r['attendance_time'] = str(r['attendance_time']) # ★追加した行
         if not r['course_name']: r['course_name'] = '-'
     return jsonify({'success': True, 'reports': res})
 
