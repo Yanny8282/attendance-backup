@@ -135,6 +135,7 @@ function setupEvents(sid) {
         }
     };
 
+    // ▼▼▼ 修正箇所: 出席打刻処理の改善 (事前重複チェック) ▼▼▼
     document.getElementById('checkInButton').onclick = async () => {
         const btn = document.getElementById('checkInButton');
         const msg = document.getElementById('checkinMessage');
@@ -142,8 +143,41 @@ function setupEvents(sid) {
         const koma = document.getElementById('komaSelectCheckin').value;
         
         msg.style.display = 'block';
-        msg.textContent = "位置情報取得中..."; 
         btn.disabled = true;
+
+        if (!cid || !koma) {
+            msg.textContent = "⚠️ 授業とコマを選択してください";
+            btn.disabled = false;
+            return;
+        }
+
+        // --- ステップ1: 重複チェック (サーバーへ問い合わせ) ---
+        msg.textContent = "登録状況を確認中...";
+        try {
+            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+            // 既存APIを利用して今日のデータを取得
+            const checkRes = await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${today}&end_date=${today}`);
+            const checkData = await checkRes.json();
+            
+            if (checkData.success) {
+                // 同じコマに既に登録があるか確認 (科目が違ってもコマが同じなら重複とみなす)
+                const duplicate = checkData.records.find(r => r.koma == koma);
+                if (duplicate) {
+                    const statusText = duplicate.status_text || '登録済';
+                    const courseName = duplicate.course_name || '不明な授業';
+                    msg.textContent = `⚠️ このコマは既に「${statusText} (${courseName})」として登録されています`;
+                    alert(`このコマ(${koma}限)は既に登録済みです。\n重複登録はできません。`);
+                    btn.disabled = false;
+                    return; // ★ここで処理を中断！位置情報取得へ進まない
+                }
+            }
+        } catch(e) {
+            console.error("Duplicate check error:", e);
+            // チェックに失敗しても、一応先に進めるか、エラーで止めるか。今回は安全のため進めるがログを出す
+        }
+
+        // --- ステップ2: 位置情報取得 ---
+        msg.textContent = "位置情報取得中..."; 
 
         if (!navigator.geolocation) {
             msg.textContent = "⚠️ この端末では位置情報が使えません";
@@ -153,6 +187,7 @@ function setupEvents(sid) {
 
         navigator.geolocation.getCurrentPosition(async (pos) => {
             try {
+                // --- ステップ3: 顔認証 ---
                 msg.textContent = "顔解析中...";
                 const descriptor = await getFaceDescriptor('videoCheckin');
                 if (!descriptor) { 
@@ -162,6 +197,7 @@ function setupEvents(sid) {
                     return; 
                 }
 
+                // --- ステップ4: 登録送信 ---
                 const res = await fetch(`${API_BASE_URL}/check_in`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -171,7 +207,12 @@ function setupEvents(sid) {
                     })
                 });
                 const ret = await res.json();
-                msg.textContent = ret.success ? `✅ ${ret.message}` : `❌ ${ret.message}`;
+                
+                if (ret.success) {
+                    msg.textContent = `✅ ${ret.message}`;
+                } else {
+                    msg.textContent = `❌ ${ret.message}`;
+                }
             } catch(e) { 
                 console.error(e);
                 msg.textContent = "通信または処理エラー"; 
@@ -192,6 +233,7 @@ function setupEvents(sid) {
             maximumAge: 0
         });
     };
+    // ▲▲▲ 修正ここまで ▲▲▲
 
     document.getElementById('submitAbsenceButton').onclick = async () => {
         const date = document.getElementById('absenceDate').value;
