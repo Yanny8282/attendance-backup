@@ -230,7 +230,6 @@ def report_absence():
     mail_details = [] 
     count = 0
 
-    # ▼ ここでループして「メールの文面」を作るだけにする
     for item in reports:
         k = item['koma']
         st_id = item['status']
@@ -260,7 +259,6 @@ def report_absence():
             execute_query("INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, reason) VALUES (%s,%s,%s,%s,%s,%s)", (sid, date, course_id, k, st_id, reason))
         count += 1
 
-    # ▼ ループが終わってから（インデントを戻して）メール送信
     if class_id:
         teachers_to_notify = execute_query("SELECT t.email, t.teacher_name FROM teachers t JOIN teacher_assignments ta ON t.teacher_id = ta.teacher_id WHERE ta.class_id=%s", (class_id,), fetch=True)
         
@@ -323,8 +321,16 @@ def update_attendance_status():
 @app.route(f'{API_BASE_URL}/get_student_list')
 def get_student_list():
     cls = request.args.get('class_id')
-    q = "SELECT * FROM students" + (" WHERE class_id=%s" if cls and cls!='all' else "")
-    res = execute_query(q, (cls,) if cls and cls!='all' else (), fetch=True)
+    # ▼▼▼ 修正: student_authをJOINしてパスワードも取得するように変更 ▼▼▼
+    q = "SELECT s.*, sa.password FROM students s LEFT JOIN student_auth sa ON s.student_id=sa.student_id"
+    # ▲▲▲ 修正ここまで ▲▲▲
+    
+    if cls and cls!='all':
+        q += " WHERE s.class_id=%s"
+        res = execute_query(q, (cls,), fetch=True)
+    else:
+        res = execute_query(q, (), fetch=True)
+        
     for r in res: r['birthday'] = r['birthday'].isoformat() if r['birthday'] else ''
     return jsonify({'success': True, 'students': res})
 

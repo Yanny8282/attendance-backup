@@ -116,7 +116,27 @@ function setupEvents() {
 
     document.getElementById('studentCrudClassFilter').onchange = loadStudentList;
 
-    // ▼▼▼ 生徒管理: クラス選択のイベントハンドラ追加 ▼▼▼
+    // ▼▼▼ パスワード表示切替のイベント設定 ▼▼▼
+    const setupToggle = (inputId, iconId) => {
+        const inp = document.getElementById(inputId);
+        const icon = document.getElementById(iconId);
+        if(inp && icon) {
+            icon.onclick = () => {
+                if(inp.type === 'password') {
+                    inp.type = 'text';
+                    icon.textContent = '🙈'; // 見えている状態のアイコン
+                } else {
+                    inp.type = 'password';
+                    icon.textContent = '👁️'; // 隠れている状態のアイコン
+                }
+            };
+        }
+    };
+    setupToggle('crudSPass', 'toggleSPass');
+    setupToggle('crudTPass', 'toggleTPass');
+    // ▲▲▲ パスワード表示切替ここまで ▲▲▲
+
+    // クラス選択ロジック
     const crudSel = document.getElementById('crudSClassSelect');
     if(crudSel) {
         crudSel.onchange = () => {
@@ -132,7 +152,6 @@ function setupEvents() {
     }
 
     window.saveStudent = async () => {
-        // ▼▼▼ クラスIDの取得ロジック ▼▼▼
         let classIdVal = document.getElementById('crudSClassSelect').value;
         if(classIdVal === 'new') {
             classIdVal = document.getElementById('crudSClassInput').value;
@@ -145,8 +164,8 @@ function setupEvents() {
         const body = {
             student_id: document.getElementById('crudSid').value,
             student_name: document.getElementById('crudSName').value,
-            class_id: classIdVal, // 選択または入力された値
-            gender: document.getElementById('crudSGen').value, // 選択された性別
+            class_id: classIdVal,
+            gender: document.getElementById('crudSGen').value, 
             birthday: document.getElementById('crudSBirth').value,
             email: document.getElementById('crudSEmail').value,
             password: document.getElementById('crudSPass').value
@@ -433,7 +452,7 @@ async function loadStudentList() {
 window.openStudentForm = (id) => {
     document.getElementById('studentForm').style.display='block';
     
-    // ▼▼▼ クラスプルダウンの生成ロジック ▼▼▼
+    // クラスプルダウンの生成ロジック
     const sel = document.getElementById('crudSClassSelect');
     const inp = document.getElementById('crudSClassInput');
     sel.innerHTML = '';
@@ -466,17 +485,25 @@ window.openStudentForm = (id) => {
         // クラス選択状態を復元
         if(s.class_id) { sel.value = s.class_id; } else { sel.selectedIndex = 0; }
 
-        // ▼▼▼ 性別データの復元 ▼▼▼
         document.getElementById('crudSGen').value = s.gender || '設定しない';
-        
         document.getElementById('crudSBirth').value=s.birthday;
         document.getElementById('crudSEmail').value=s.email;
+        
+        // ▼▼▼ パスワードの復元（初期は伏せ字） ▼▼▼
+        const p = document.getElementById('crudSPass');
+        p.value = s.password || ''; // APIから返ってきたパスワードをセット
+        p.type = 'password';
+        document.getElementById('toggleSPass').textContent = '👁️';
     } else {
         document.getElementById('crudSid').disabled=false; document.getElementById('crudSid').value='';
         sel.selectedIndex = 0;
-        
-        // ▼▼▼ 性別デフォルト設定 ▼▼▼
         document.getElementById('crudSGen').value = '設定しない';
+        
+        // ▼▼▼ 新規時の初期パスワード設定 ▼▼▼
+        const p = document.getElementById('crudSPass');
+        p.value = 'password';
+        p.type = 'password';
+        document.getElementById('toggleSPass').textContent = '👁️';
     }
 };
 
@@ -498,13 +525,24 @@ window.openTeacherForm = (id) => {
         label.innerHTML = `<input type="checkbox" value="${clsId}"> クラス${clsId}`;
         container.appendChild(label);
     });
+    
+    const p = document.getElementById('crudTPass');
+    const icon = document.getElementById('toggleTPass');
+    p.type = 'password';
+    icon.textContent = '👁️';
+
     if(id) {
         const t = teachers.find(x=>x.teacher_id==id);
         document.getElementById('crudTid').value=t.teacher_id; document.getElementById('crudTid').disabled=true;
         document.getElementById('crudTName').value=t.teacher_name; document.getElementById('crudTEmail').value=t.email;
         if(t.assigned_classes) { t.assigned_classes.forEach(cid => { const cb = container.querySelector(`input[value="${cid}"]`); if(cb) cb.checked = true; }); }
+        
+        // ▼▼▼ パスワードの復元 ▼▼▼
+        p.value = t.password || ''; 
     } else {
         document.getElementById('crudTid').disabled=false; document.getElementById('crudTid').value='';
+        // ▼▼▼ 新規時の初期パスワード ▼▼▼
+        p.value = 'password';
     }
 };
 
