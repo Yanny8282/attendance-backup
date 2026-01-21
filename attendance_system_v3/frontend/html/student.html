@@ -2,6 +2,9 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>生徒ダッシュボード</title>
     <link rel="stylesheet" href="../css/common.css">
@@ -29,59 +32,58 @@
         <button class="tab-button active" data-tab="schedule-view">📅 ホーム</button>
         <button class="tab-button" data-tab="checkin">📸 出席打刻</button>
         <button class="tab-button" data-tab="records">📜 出席記録</button>
-        <button class="tab-button" data-tab="absence">📩 欠席連絡</button>
-        <button class="tab-button" data-tab="chat">💬 先生へ連絡</button>
+        <button class="tab-button" data-tab="absence">📩 欠席届</button>
+        <button class="tab-button" data-tab="chat">💬 連絡</button>
         <button class="tab-button" data-tab="register-face">👤 顔登録</button>
-    </div>
-    <div class="nav-footer">
-        <button id="logoutButton" class="logout-menu-button">🚪 ログアウト</button>
+        <button id="logoutButton" style="background-color: #666;">ログアウト</button>
     </div>
 </nav>
+<div class="nav-overlay" id="navOverlay"></div>
 
-    <div class="nav-overlay" id="navOverlay"></div>
-
-    <div class="container">
-        <div id="schedule-view" class="tab-content active">
-            <h2>📅 授業予定</h2>
-            <input type="month" id="studentScheduleMonth">
-            <div id="scheduleContainer"></div>
+    <div class="container" style="margin-top:20px;">
+        <div id="checkin" class="tab-content" style="display:none;">
+            <h2>📸 出席打刻</h2>
+            <div style="text-align: center;">
+                <p id="autoSelectInfo" style="font-weight:bold; color:#007bff; margin-bottom:10px;">--</p>
+                <div class="camera-box">
+                    <video id="videoCheckin" autoplay playsinline></video>
+                </div>
+                <div class="control-group">
+                    <label>授業: <select id="courseSelectCheckin"></select></label>
+                    <label>時限: <select id="komaSelectCheckin"></select></label>
+                </div>
+                <button id="checkInButton">出席する</button>
+                <p id="checkinMessage" style="margin-top: 15px; font-weight: bold;"></p>
+            </div>
         </div>
 
-        <div id="checkin" class="tab-content">
-            <h2>📸 出席打刻</h2>
-            <p id="autoSelectInfo" style="color:#1565c0; font-weight:bold; margin-bottom:10px; font-size:0.9rem;"></p>
-            <div class="camera-container"><video id="videoCheckin" autoplay playsinline muted></video></div>
-            <label>授業を選択</label>
-            <select id="courseSelectCheckin"></select>
-            <label>時限を選択</label>
-            <select id="komaSelectCheckin"></select>
-            <button id="checkInButton">出席する</button>
-            <p id="checkinMessage" class="message" style="display:none;"></p>
+        <div id="schedule-view" class="tab-content active">
+            <h2>📅 今月のスケジュール</h2>
+            <input type="month" id="studentScheduleMonth" style="margin-bottom:15px; padding:5px;">
+            <div id="scheduleContainer"></div>
         </div>
 
         <div id="records" class="tab-content">
             <h2>📜 出席記録</h2>
-            <div class="table-responsive">
-                <table id="attendanceTable">
-                    <thead>
-                        <tr>
-                            <th>日付</th>
-                            <th>コマ</th>
-                            <th>授業</th>
-                            <th>状態</th>
-                            <th>時間</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
+            <table id="attendanceTable">
+                <thead>
+                    <tr>
+                        <th>日付</th>
+                        <th>時限</th>
+                        <th>授業名</th>
+                        <th>状態</th>
+                        <th>時間</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
         </div>
 
         <div id="absence" class="tab-content">
             <h2>📩 欠席・遅刻の連絡</h2>
-            <label>対象日</label>
-            <input type="date" id="absenceDate">
-            <p style="margin: 15px 0 10px; font-weight:bold; font-size:0.95rem;">連絡するコマと内容:</p>
+            <div style="margin-bottom:15px;">
+                <label>対象日: <input type="date" id="absenceDate"></label>
+            </div>
             <div class="absence-row"><span>1限</span><select class="absence-status-select" data-koma="1"><option value="">(選択なし - 出席)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></div>
             <div class="absence-row"><span>2限</span><select class="absence-status-select" data-koma="2"><option value="">(選択なし - 出席)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></div>
             <div class="absence-row"><span>3限</span><select class="absence-status-select" data-koma="3"><option value="">(選択なし - 出席)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></div>
@@ -105,12 +107,14 @@
         <div id="register-face" class="tab-content">
             <h2>👤 顔データの登録</h2>
             <p style="font-size:0.9rem; color:#666; margin-bottom:10px;">カメラを見て「登録」ボタンを押してください。</p>
-            <div class="camera-container"><video id="videoRegister" autoplay playsinline muted></video></div>
-            <button id="registerFaceButton">顔を登録する</button>
+            <div class="camera-box">
+                <video id="videoRegister" autoplay playsinline></video>
+            </div>
+            <button id="registerFaceButton">登録</button>
         </div>
     </div>
-    
-    <script src="../js/libs/face-api.min.js"></script>
-    <script src="../js/student.js?v=2"></script>
+
+    <script src="../js/face-api.min.js"></script>
+    <script src="../js/student.js"></script>
 </body>
 </html>

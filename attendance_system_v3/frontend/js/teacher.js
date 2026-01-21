@@ -3,16 +3,25 @@ const API_BASE_URL = '/api';
 let courses=[], komas=[], students=[], teachers=[], schSel=[], chatTimer=null, editStData=null, editSchData=null;
 let allClassIds = [];
 
-document.addEventListener('DOMContentLoaded', async () => {
+// ▼▼▼ 認証チェック関数 ▼▼▼
+const checkAuth = () => {
     const tid = sessionStorage.getItem('user_id');
-    const role = sessionStorage.getItem('user_role');
-
-    if (!tid || role !== 'teacher') {
-        alert('認証エラー: 教師としてログインしていません');
-        location.href = 'index.html'; 
-        return; 
+    if (!tid || sessionStorage.getItem('user_role') !== 'teacher') {
+        location.replace('../html/index.html');
+        return false;
     }
+    return true;
+};
 
+// ▼▼▼ ページが表示されるたびに実行 (戻るボタン対策) ▼▼▼
+window.addEventListener('pageshow', (event) => {
+    checkAuth();
+});
+
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!checkAuth()) return;
+
+    const tid = sessionStorage.getItem('user_id');
     document.getElementById('teacherId').textContent = tid;
     
     const unread = sessionStorage.getItem('unread_count');
@@ -72,7 +81,11 @@ async function initData() {
 }
 
 function setupEvents() {
-    document.getElementById('logoutButton').onclick = () => { sessionStorage.clear(); location.href='../html/index.html'; };
+    document.getElementById('logoutButton').onclick = () => { 
+        sessionStorage.clear(); 
+        // ★変更: 履歴を残さずに移動
+        location.replace('../html/index.html'); 
+    };
     
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -150,9 +163,8 @@ function setupEvents() {
         };
     }
 
-    // ▼▼▼ 修正: バリデーション強化 (saveStudent) ▼▼▼
+    // ▼▼▼ バリデーション (saveStudent) ▼▼▼
     window.saveStudent = async () => {
-        // 値の取得とトリミング（空白削除）
         const sid = document.getElementById('crudSid').value.trim();
         const sname = document.getElementById('crudSName').value.trim();
         
@@ -164,22 +176,20 @@ function setupEvents() {
         const gen = document.getElementById('crudSGen').value;
         const birth = document.getElementById('crudSBirth').value;
         const email = document.getElementById('crudSEmail').value.trim();
-        const pass = document.getElementById('crudSPass').value; // パスワードは空白もあり得るのでtrimしない
+        const pass = document.getElementById('crudSPass').value; 
 
         // エラーチェック
         let errorMsg = [];
         if(!sid) errorMsg.push("・学籍番号を入力してください");
         if(!sname) errorMsg.push("・氏名を入力してください");
         if(!classIdVal) errorMsg.push("・クラスを選択または入力してください");
-        if(gen === '設定しない') errorMsg.push("・性別を選択してください");
         if(!birth) errorMsg.push("・生年月日を入力してください");
         if(!email) errorMsg.push("・Emailを入力してください");
         if(!pass) errorMsg.push("・パスワードを入力してください");
 
-        // エラーがあればアラートを出して終了（サーバーには送らない）
         if(errorMsg.length > 0) {
             alert("【入力エラー】\n以下の項目を確認してください:\n\n" + errorMsg.join("\n"));
-            return; // ★ここで確実に止める！
+            return;
         }
 
         const body = {
@@ -215,14 +225,13 @@ function setupEvents() {
         document.getElementById('studentForm').style.display='none'; loadStudentList();
     };
     
-    // ▼▼▼ 修正: バリデーション強化 (saveTeacher) ▼▼▼
+    // ▼▼▼ バリデーション (saveTeacher) ▼▼▼
     window.saveTeacher = async () => {
         const tid = document.getElementById('crudTid').value.trim();
         const tname = document.getElementById('crudTName').value.trim();
         const email = document.getElementById('crudTEmail').value.trim();
         const pass = document.getElementById('crudTPass').value;
 
-        // エラーチェック
         let errorMsg = [];
         if(!tid) errorMsg.push("・教員IDを入力してください");
         if(!tname) errorMsg.push("・氏名を入力してください");
@@ -231,7 +240,7 @@ function setupEvents() {
 
         if(errorMsg.length > 0) {
             alert("【入力エラー】\n以下の項目を確認してください:\n\n" + errorMsg.join("\n"));
-            return; // ★ここで確実に止める！
+            return;
         }
 
         const checkedClasses = [];
@@ -516,10 +525,12 @@ async function loadStudentList() {
 window.openStudentForm = (id) => {
     document.getElementById('studentForm').style.display='block';
     
+    // クラスプルダウンの生成ロジック
     const sel = document.getElementById('crudSClassSelect');
     const inp = document.getElementById('crudSClassInput');
     sel.innerHTML = '';
     
+    // 既存のクラスを追加
     if(allClassIds && allClassIds.length > 0) {
         allClassIds.forEach(c => {
             const o = document.createElement('option');
@@ -529,11 +540,13 @@ window.openStudentForm = (id) => {
         });
     }
     
+    // 新規追加オプションを追加
     const newOp = document.createElement('option');
     newOp.value = 'new';
     newOp.textContent = '＋ 新規クラス追加';
     sel.appendChild(newOp);
     
+    // 入力欄は最初は隠す
     inp.style.display = 'none';
     inp.value = '';
 
@@ -542,12 +555,14 @@ window.openStudentForm = (id) => {
         document.getElementById('crudSid').value=s.student_id; document.getElementById('crudSid').disabled=true;
         document.getElementById('crudSName').value=s.student_name; 
         
+        // クラス選択状態を復元
         if(s.class_id) { sel.value = s.class_id; } else { sel.selectedIndex = 0; }
 
         document.getElementById('crudSGen').value = s.gender || '設定しない';
         document.getElementById('crudSBirth').value=s.birthday;
         document.getElementById('crudSEmail').value=s.email;
         
+        // パスワードの復元
         const p = document.getElementById('crudSPass');
         p.value = s.password || ''; 
         p.type = 'password';
@@ -557,6 +572,7 @@ window.openStudentForm = (id) => {
         sel.selectedIndex = 0;
         document.getElementById('crudSGen').value = '設定しない';
         
+        // 新規時の初期パスワード
         const p = document.getElementById('crudSPass');
         p.value = 'password';
         p.type = 'password';
@@ -593,9 +609,12 @@ window.openTeacherForm = (id) => {
         document.getElementById('crudTid').value=t.teacher_id; document.getElementById('crudTid').disabled=true;
         document.getElementById('crudTName').value=t.teacher_name; document.getElementById('crudTEmail').value=t.email;
         if(t.assigned_classes) { t.assigned_classes.forEach(cid => { const cb = container.querySelector(`input[value="${cid}"]`); if(cb) cb.checked = true; }); }
+        
+        // パスワードの復元
         p.value = t.password || ''; 
     } else {
         document.getElementById('crudTid').disabled=false; document.getElementById('crudTid').value='';
+        // 新規時の初期パスワード
         p.value = 'password';
     }
 };

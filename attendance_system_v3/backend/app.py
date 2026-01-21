@@ -197,17 +197,12 @@ def check_in():
         if now > start_dt + timedelta(minutes=30): st_id = 3
         elif now > start_dt: st_id = 2
 
-        # ★修正: 科目(course_id)に関わらず、その日付・そのコマにレコードがあれば重複とみなす
         exist = execute_query("SELECT * FROM attendance_records WHERE student_id=%s AND attendance_date=%s AND koma=%s", (sid, today, koma), fetch=True)
         
         if exist:
             status_now = STATUS_NAMES.get(exist[0]['status_id'], '登録済')
-            # 既存のレコードの科目名を取得してメッセージに出す（親切設計）
-            existing_course_name = "不明な授業"
-            if exist[0]['course_id']:
-                c_info = execute_query("SELECT course_name FROM courses WHERE course_id=%s", (exist[0]['course_id'],), fetch=True)
-                if c_info: existing_course_name = c_info[0]['course_name']
-            
+            c_info = execute_query("SELECT course_name FROM courses WHERE course_id=%s", (exist[0]['course_id'],), fetch=True)
+            existing_course_name = c_info[0]['course_name'] if c_info else "不明な授業"
             return jsonify({'success': False, 'message': f'すでに{koma}限は「{existing_course_name}」で登録されています'}), 400
         else:
             execute_query("INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, attendance_time) VALUES (%s,%s,%s,%s,%s,%s)", (sid, today, cid, koma, st_id, now.strftime('%H:%M:%S')))
@@ -251,7 +246,7 @@ def report_absence():
                 course_id = sch[0]['course_id']
                 course_name = sch[0]['course_name']
         
-        # 重複チェック（こちらも科目に関係なくコマでチェック済み）
+        # 重複チェック (Frontend側でも行うがBackendでも一応スキップ処理)
         exist = execute_query("SELECT record_id, status_id FROM attendance_records WHERE student_id=%s AND attendance_date=%s AND koma=%s", (sid, date, k), fetch=True)
         
         if exist:
@@ -259,10 +254,13 @@ def report_absence():
             skipped_count += 1
             continue 
 
+        # ▼▼▼ メール本文用リストに追加（ここがループ内にあるので全件追加される） ▼▼▼
         mail_details.append(f"・{k}限 ({course_name}): {st_name}")
+        
         execute_query("INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, reason) VALUES (%s,%s,%s,%s,%s,%s)", (sid, date, course_id, k, st_id, reason))
         count += 1
 
+    # メール送信（1回だけ送信）
     if count > 0 and class_id:
         teachers_to_notify = execute_query("SELECT t.email, t.teacher_name FROM teachers t JOIN teacher_assignments ta ON t.teacher_id = ta.teacher_id WHERE ta.class_id=%s", (class_id,), fetch=True)
         
@@ -270,6 +268,7 @@ def report_absence():
             subject = f"【欠席連絡】{student_name} (クラス{class_id})"
             body_base = f"先生\n\nクラス{class_id}の {student_name} さんから欠席等の連絡がありました。\n\n"
             body_base += f"■対象日: {date}\n"
+            # ▼▼▼ ここでリストを結合して本文にする ▼▼▼
             body_base += "■内容:\n" + "\n".join(mail_details) + "\n\n"
             body_base += f"■理由:\n{reason}\n\n"
             body_base += "出席管理システムより自動送信"

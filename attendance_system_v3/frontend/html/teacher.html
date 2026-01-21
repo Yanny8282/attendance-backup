@@ -2,6 +2,9 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>教員ダッシュボード</title>
     <link rel="stylesheet" href="../css/common.css">
@@ -117,14 +120,13 @@
                 </div>
                 <div>
                     <label>Email: <input type="email" id="crudSEmail" style="width:250px;"></label>
-                    
                     <label>パスワード: 
                         <div style="position:relative; display:inline-block;">
                             <input type="password" id="crudSPass" onfocus="this.select()" style="padding-right:30px;">
                             <span id="toggleSPass" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:1.2rem; user-select:none;">👁️</span>
                         </div>
                     </label>
-                    </div>
+                </div>
                 <div style="margin-top: 10px;">
                     <button onclick="saveStudent()">保存</button>
                     <button onclick="deleteStudent()" class="delete-btn">削除</button>
@@ -162,14 +164,13 @@
                 </div>
                 <div>
                     <label>Email: <input type="email" id="crudTEmail" style="width:250px;"></label>
-                    
                     <label>パスワード: 
                         <div style="position:relative; display:inline-block;">
                             <input type="password" id="crudTPass" onfocus="this.select()" style="padding-right:30px;">
                             <span id="toggleTPass" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:1.2rem; user-select:none;">👁️</span>
                         </div>
                     </label>
-                    </div>
+                </div>
                 <div style="margin-top: 10px;">
                     <button onclick="saveTeacher()">保存</button>
                     <button onclick="deleteTeacher()" class="delete-btn">削除</button>

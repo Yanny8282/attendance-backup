@@ -4,11 +4,27 @@ let videoStream = null;
 let myClassId = null;
 let chatInterval = null;
 
-document.addEventListener('DOMContentLoaded', async () => {
+// ▼▼▼ 認証チェック関数 ▼▼▼
+const checkAuth = () => {
     const sid = sessionStorage.getItem('user_id');
+    // 認証情報がない、または権限が違う場合はログイン画面へ「置き換え(replace)」
     if (!sid || sessionStorage.getItem('user_role') !== 'student') { 
-        alert('認証エラー'); location.href = 'index.html'; return; 
+        location.replace('../html/index.html'); 
+        return false;
     }
+    return true;
+};
+
+// ▼▼▼ ページが表示されるたびに実行 (戻るボタン対策) ▼▼▼
+window.addEventListener('pageshow', (event) => {
+    // キャッシュから読み込まれた場合(persisted)も、通常表示もチェック
+    checkAuth();
+});
+
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!checkAuth()) return; // 読み込み時もチェック
+
+    const sid = sessionStorage.getItem('user_id');
     document.getElementById('studentId').textContent = sid;
     
     const unread = sessionStorage.getItem('unread_count');
@@ -18,7 +34,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     setupTabs();
-    setupHamburgerMenu(); // 追加: ハンバーガーメニューの開閉設定
+    setupHamburgerMenu();
     setupEvents(sid);
     await loadStudentInfo(sid);
     initializeDropdowns();
@@ -49,8 +65,8 @@ function setupHamburgerMenu() {
         overlay.classList.toggle('show');
     };
 
-    hamburger.addEventListener('click', toggle);
-    overlay.addEventListener('click', toggle);
+    if(hamburger) hamburger.addEventListener('click', toggle);
+    if(overlay) overlay.addEventListener('click', toggle);
 }
 
 function setupTabs() {
@@ -60,8 +76,8 @@ function setupTabs() {
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.addEventListener('click', () => {
             // メニューを閉じる
-            sideNav.classList.remove('open');
-            overlay.classList.remove('show');
+            if(sideNav) sideNav.classList.remove('open');
+            if(overlay) overlay.classList.remove('show');
 
             // タブ切り替え
             document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
@@ -114,7 +130,7 @@ function setupEvents(sid) {
     document.getElementById('logoutButton').onclick = () => {
         if(confirm("ログアウトしますか？")) {
             sessionStorage.clear();
-            location.href = '../html/index.html';
+            location.replace('../html/index.html');
         }
     };
     document.getElementById('registerFaceButton').onclick = async () => {
@@ -135,7 +151,7 @@ function setupEvents(sid) {
         }
     };
 
-    // ▼▼▼ 修正箇所: 出席打刻処理の改善 (事前重複チェック) ▼▼▼
+    // 出席打刻処理 (重複チェックを最初に実行)
     document.getElementById('checkInButton').onclick = async () => {
         const btn = document.getElementById('checkInButton');
         const msg = document.getElementById('checkinMessage');
@@ -151,32 +167,29 @@ function setupEvents(sid) {
             return;
         }
 
-        // --- ステップ1: 重複チェック (サーバーへ問い合わせ) ---
+        // --- 重複チェック ---
         msg.textContent = "登録状況を確認中...";
         try {
-            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-            // 既存APIを利用して今日のデータを取得
+            const today = new Date().toISOString().split('T')[0];
             const checkRes = await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${today}&end_date=${today}`);
             const checkData = await checkRes.json();
             
             if (checkData.success) {
-                // 同じコマに既に登録があるか確認 (科目が違ってもコマが同じなら重複とみなす)
                 const duplicate = checkData.records.find(r => r.koma == koma);
                 if (duplicate) {
                     const statusText = duplicate.status_text || '登録済';
                     const courseName = duplicate.course_name || '不明な授業';
                     msg.textContent = `⚠️ このコマは既に「${statusText} (${courseName})」として登録されています`;
-                    alert(`このコマ(${koma}限)は既に登録済みです。\n重複登録はできません。`);
+                    alert(`このコマ(${koma}限)は既に登録済みです。\n(${courseName} で ${statusText})`);
                     btn.disabled = false;
-                    return; // ★ここで処理を中断！位置情報取得へ進まない
+                    return; 
                 }
             }
         } catch(e) {
             console.error("Duplicate check error:", e);
-            // チェックに失敗しても、一応先に進めるか、エラーで止めるか。今回は安全のため進めるがログを出す
         }
 
-        // --- ステップ2: 位置情報取得 ---
+        // --- 位置情報取得 ---
         msg.textContent = "位置情報取得中..."; 
 
         if (!navigator.geolocation) {
@@ -187,7 +200,7 @@ function setupEvents(sid) {
 
         navigator.geolocation.getCurrentPosition(async (pos) => {
             try {
-                // --- ステップ3: 顔認証 ---
+                // --- 顔認証 ---
                 msg.textContent = "顔解析中...";
                 const descriptor = await getFaceDescriptor('videoCheckin');
                 if (!descriptor) { 
@@ -197,7 +210,7 @@ function setupEvents(sid) {
                     return; 
                 }
 
-                // --- ステップ4: 登録送信 ---
+                // --- 登録送信 ---
                 const res = await fetch(`${API_BASE_URL}/check_in`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -233,8 +246,8 @@ function setupEvents(sid) {
             maximumAge: 0
         });
     };
-    // ▲▲▲ 修正ここまで ▲▲▲
 
+    // ▼▼▼ 欠席連絡: 重複チェック追加 ▼▼▼
     document.getElementById('submitAbsenceButton').onclick = async () => {
         const date = document.getElementById('absenceDate').value;
         const reason = document.getElementById('absenceReason').value;
@@ -249,6 +262,31 @@ function setupEvents(sid) {
         if(!date) { alert("日付を選択してください"); return; }
         if(reports.length === 0) { alert("連絡するコマの状態を1つ以上選択してください"); return; }
         if(!reason) { alert("理由を入力してください"); return; }
+
+        // --- 重複チェック開始 ---
+        try {
+            const checkRes = await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${date}&end_date=${date}`);
+            const checkData = await checkRes.json();
+            
+            if (checkData.success) {
+                const duplicates = [];
+                reports.forEach(r => {
+                    const exists = checkData.records.find(existing => existing.koma === r.koma);
+                    if (exists) {
+                        duplicates.push(`${r.koma}限`);
+                    }
+                });
+
+                if (duplicates.length > 0) {
+                    alert(`以下のコマは既に登録済みのため送信できません:\n${duplicates.join(', ')}\n\n日付を確認するか、教員へ連絡してください。`);
+                    return; // ★ここで処理を中断！送信しません
+                }
+            }
+        } catch(e) {
+            console.error("Duplicate check error", e);
+            // チェックに失敗した場合は念のため進めるか、エラーを出すか。今回は安全策で進めますがコンソールにログ
+        }
+        // --- 重複チェック終了 ---
 
         try {
             const res = await fetch(`${API_BASE_URL}/report_absence`, {
@@ -267,6 +305,7 @@ function setupEvents(sid) {
             console.error(e); alert("通信エラー");
         }
     };
+    // ▲▲▲ 欠席連絡修正ここまで ▲▲▲
 
     document.getElementById('sendChatButton').onclick = async () => {
         const txt = document.getElementById('chatInput').value;
