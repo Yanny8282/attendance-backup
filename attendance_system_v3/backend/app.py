@@ -230,6 +230,7 @@ def report_absence():
     mail_details = [] 
     count = 0
 
+    # ▼ ここでループして「メールの文面」を作るだけにする
     for item in reports:
         k = item['koma']
         st_id = item['status']
@@ -259,6 +260,7 @@ def report_absence():
             execute_query("INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, reason) VALUES (%s,%s,%s,%s,%s,%s)", (sid, date, course_id, k, st_id, reason))
         count += 1
 
+    # ▼ ループが終わってから（インデントを戻して）メール送信
     if class_id:
         teachers_to_notify = execute_query("SELECT t.email, t.teacher_name FROM teachers t JOIN teacher_assignments ta ON t.teacher_id = ta.teacher_id WHERE ta.class_id=%s", (class_id,), fetch=True)
         

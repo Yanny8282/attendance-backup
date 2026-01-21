@@ -50,28 +50,26 @@
 
         <div id="schedule-mgr" class="tab-content">
             <h2>📅 授業予定表 (クラス別)</h2>
-                <div style="margin-bottom: 10px;">
-                    <label>クラス選択: <select id="scheduleClassSelect"></select></label>
-                    <label style="margin-left: 10px;">年月: <input type="month" id="scheduleMonthInput"></label>
-                </div>
-
-                <div style="margin-bottom: 15px; padding: 5px 0;">
-                    <label>新規授業マスタ登録: 
-                        <input type="text" id="newCourseName" placeholder="授業名" size="15">
-                    </label>
-                    <button id="addCourseMasterBtn">追加</button>
-                </div>
+            <div style="margin-bottom: 10px;">
+                <label>クラス選択: <select id="scheduleClassSelect"></select></label>
+                <label>年月: <input type="month" id="scheduleMonthInput"></label>
+            </div>
+            
+            <div style="margin:10px 0; background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #ddd;">
+                <strong>編集モード:</strong>
+                <label style="margin-right:15px;"><input type="radio" name="schMode" value="single" checked> 個別クリックで編集</label>
+                <label><input type="radio" name="schMode" value="multi"> 複数選択して一括適用</label>
                 
-                <div style="margin:10px 0; background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #ddd;">
-                    <strong>編集モード:</strong>
-                    <label style="margin-right:15px;"><input type="radio" name="schMode" value="single" checked> 個別クリックで編集</label>
-                    <label><input type="radio" name="schMode" value="multi"> 複数選択して一括適用</label>
-                    
-                    <span id="multiControls" style="display:none; margin-left:15px; padding-left:15px; border-left:2px solid #ccc;">
-                        <label>適用する授業: <select id="schMultiCourseSelect"></select></label>
-                        <button id="schMultiApplyBtn">選択した日に適用</button>
-                    </span>
-                </div>
+                <span id="multiControls" style="display:none; margin-left:15px; padding-left:15px; border-left:2px solid #ccc;">
+                    <label>適用する授業: <select id="schMultiCourseSelect"></select></label>
+                    <button id="schMultiApplyBtn">選択した日に適用</button>
+                </span>
+
+                <span style="float:right;">
+                    新規授業マスタ登録: <input type="text" id="newCourseName" placeholder="授業名" size="12">
+                    <button id="addCourseMasterBtn">追加</button>
+                </span>
+            </div>
             
             <div id="scheduleCalendarWrapper"></div>
         </div>
@@ -101,10 +99,20 @@
                 <div>
                     <label>学籍番号: <input type="number" id="crudSid" placeholder="例: 1001"></label>
                     <label>氏名: <input type="text" id="crudSName"></label>
-                    <label>クラスID: <input type="number" id="crudSClass"></label>
+                    
+                    <label>クラス: 
+                        <select id="crudSClassSelect" style="padding: 5px;"></select>
+                        <input type="number" id="crudSClassInput" placeholder="新しいクラスID" style="display:none; width: 120px; margin-left: 5px;">
+                    </label>
                 </div>
                 <div>
-                    <label>性別: <input type="text" id="crudSGen" placeholder="男性/女性"></label>
+                    <label>性別: 
+                        <select id="crudSGen" style="padding: 5px;">
+                            <option value="男">男</option>
+                            <option value="女">女</option>
+                            <option value="設定しない">設定しない</option>
+                        </select>
+                    </label>
                     <label>生年月日: <input type="date" id="crudSBirth"></label>
                 </div>
                 <div>

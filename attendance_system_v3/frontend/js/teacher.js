@@ -116,20 +116,48 @@ function setupEvents() {
 
     document.getElementById('studentCrudClassFilter').onchange = loadStudentList;
 
+    // ▼▼▼ 生徒管理: クラス選択のイベントハンドラ追加 ▼▼▼
+    const crudSel = document.getElementById('crudSClassSelect');
+    if(crudSel) {
+        crudSel.onchange = () => {
+            const inp = document.getElementById('crudSClassInput');
+            if(crudSel.value === 'new') {
+                inp.style.display = 'inline-block';
+                inp.value = '';
+                inp.focus();
+            } else {
+                inp.style.display = 'none';
+            }
+        };
+    }
+
     window.saveStudent = async () => {
+        // ▼▼▼ クラスIDの取得ロジック ▼▼▼
+        let classIdVal = document.getElementById('crudSClassSelect').value;
+        if(classIdVal === 'new') {
+            classIdVal = document.getElementById('crudSClassInput').value;
+            if(!classIdVal) {
+                alert("新しいクラスIDを入力してください");
+                return;
+            }
+        }
+
         const body = {
             student_id: document.getElementById('crudSid').value,
             student_name: document.getElementById('crudSName').value,
-            class_id: document.getElementById('crudSClass').value,
-            gender: document.getElementById('crudSGen').value,
+            class_id: classIdVal, // 選択または入力された値
+            gender: document.getElementById('crudSGen').value, // 選択された性別
             birthday: document.getElementById('crudSBirth').value,
             email: document.getElementById('crudSEmail').value,
             password: document.getElementById('crudSPass').value
         };
         const url = document.getElementById('crudSid').disabled ? 'update_student' : 'add_student';
         await fetch(`${API_BASE_URL}/${url}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-        document.getElementById('studentForm').style.display='none'; loadStudentList();
+        
+        alert("保存しました");
+        location.reload(); 
     };
+
     window.deleteStudent = async () => {
         if(!confirm('削除しますか？')) return;
         await fetch(`${API_BASE_URL}/delete_student`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({student_id:document.getElementById('crudSid').value})});
@@ -257,7 +285,7 @@ async function loadCalStudents() {
     d.students.forEach(i=>{ const o=document.createElement('option'); o.value=i.student_id; o.textContent=i.student_name; s.appendChild(o); });
 }
 
-// ★変更: カレンダー生成ロジック (週間表示対応)
+// カレンダー生成ロジック
 async function loadCalendar() {
     const sid = document.getElementById('calStudentSelect').value;
     if(!sid) { alert("生徒を選択してください"); return; }
@@ -268,19 +296,16 @@ async function loadCalendar() {
     let s, e;
     
     if(view === 'week') {
-        // 週間: その週の日曜～土曜だけ計算
         const day = baseDate.getDay(); 
         s = new Date(baseDate);
         s.setDate(baseDate.getDate() - day);
         e = new Date(s);
         e.setDate(s.getDate() + 6);
     } else {
-        // 月間: 1日～末日
         s = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
         e = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0);
     }
 
-    // ローカル時間での日付文字列生成 (YYYY-MM-DD)
     const format = (d) => `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
     const s_str = format(s);
     const e_str = format(e);
@@ -291,12 +316,10 @@ async function loadCalendar() {
     let h = '<div class="month-calendar">';
     ['日','月','火','水','木','金','土'].forEach(x => h += `<div class="month-day-header">${x}</div>`);
     
-    // 月間表示のみパディング(空白セル)を入れる
     if(view === 'month') {
         for(let i=0; i<s.getDay(); i++) h += '<div></div>';
     }
 
-    // 日付ループ (指定範囲のみ描画)
     let loopDate = new Date(s);
     while(loopDate <= e) {
         const dt = format(loopDate);
@@ -409,14 +432,51 @@ async function loadStudentList() {
 
 window.openStudentForm = (id) => {
     document.getElementById('studentForm').style.display='block';
+    
+    // ▼▼▼ クラスプルダウンの生成ロジック ▼▼▼
+    const sel = document.getElementById('crudSClassSelect');
+    const inp = document.getElementById('crudSClassInput');
+    sel.innerHTML = '';
+    
+    // 既存のクラスを追加
+    if(allClassIds && allClassIds.length > 0) {
+        allClassIds.forEach(c => {
+            const o = document.createElement('option');
+            o.value = c;
+            o.textContent = `クラス${c}`;
+            sel.appendChild(o);
+        });
+    }
+    
+    // 新規追加オプションを追加
+    const newOp = document.createElement('option');
+    newOp.value = 'new';
+    newOp.textContent = '＋ 新規クラス追加';
+    sel.appendChild(newOp);
+    
+    // 入力欄は最初は隠す
+    inp.style.display = 'none';
+    inp.value = '';
+
     if(id) {
         const s = students.find(x=>x.student_id==id);
         document.getElementById('crudSid').value=s.student_id; document.getElementById('crudSid').disabled=true;
-        document.getElementById('crudSName').value=s.student_name; document.getElementById('crudSClass').value=s.class_id;
-        document.getElementById('crudSGen').value=s.gender; document.getElementById('crudSBirth').value=s.birthday;
+        document.getElementById('crudSName').value=s.student_name; 
+        
+        // クラス選択状態を復元
+        if(s.class_id) { sel.value = s.class_id; } else { sel.selectedIndex = 0; }
+
+        // ▼▼▼ 性別データの復元 ▼▼▼
+        document.getElementById('crudSGen').value = s.gender || '設定しない';
+        
+        document.getElementById('crudSBirth').value=s.birthday;
         document.getElementById('crudSEmail').value=s.email;
     } else {
         document.getElementById('crudSid').disabled=false; document.getElementById('crudSid').value='';
+        sel.selectedIndex = 0;
+        
+        // ▼▼▼ 性別デフォルト設定 ▼▼▼
+        document.getElementById('crudSGen').value = '設定しない';
     }
 };
 
