@@ -1,22 +1,17 @@
-/* ベーススタイル */
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    margin: 0;
-    padding: 0;
-    background-color: #f0f2f5;
-    color: #333;
-    line-height: 1.6;
-    -webkit-text-size-adjust: 100%;
-}
+@charset "UTF-8";
 
-/* ヘッダー */
+/* =========================================
+   生徒用ダッシュボード スタイル
+   ========================================= */
+
+/* ヘッダー調整 */
 header {
-    background-color: #4CAF50;
-    color: white;
-    padding: 10px;
-    display: flex; /* 追加: 要素を横並びに */
+    display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 10px 15px;
+    background-color: #4CAF50; /* 生徒用は緑系 */
+    color: white;
     position: sticky;
     top: 0;
     z-index: 1000;
@@ -24,236 +19,327 @@ header {
 }
 
 header h1 {
+    font-size: 1.1rem;
     margin: 0;
-    font-size: 1.3rem;
-    font-weight: bold;
     flex-grow: 1;
     text-align: center;
 }
 
 .header-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    font-size: 0.8rem;
+    text-align: right;
 }
 
-/* ハンバーガーボタン */
+.user-details span {
+    display: block;
+}
+
+/* =========================================
+   ハンバーガーメニュー (スマホ用)
+   ========================================= */
 .hamburger-menu {
-    width: 30px;
-    height: 20px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
     cursor: pointer;
+    width: 30px;
+    height: 25px;
+    position: relative;
     z-index: 1100;
 }
-/* ハンバーガーがXに変形 */
-#menu-toggle:checked + .menu-icon span:nth-child(1) {
-  transform: translateY(10px) rotate(45deg);
-}
-#menu-toggle:checked + .menu-icon span:nth-child(2) {
-  opacity: 0;
-}
-#menu-toggle:checked + .menu-icon span:nth-child(3) {
-  transform: translateY(-10px) rotate(-45deg);
-}
+
 .hamburger-menu span {
     display: block;
-    height: 3px;
     width: 100%;
+    height: 3px;
     background-color: white;
-    border-radius: 2px;
+    position: absolute;
     transition: 0.3s;
+    border-radius: 2px;
 }
+
+.hamburger-menu span:nth-child(1) { top: 0; }
+.hamburger-menu span:nth-child(2) { top: 11px; }
+.hamburger-menu span:nth-child(3) { bottom: 0; }
 
 /* サイドナビゲーション */
 .side-nav {
-    position: fixed;
-    top: 0;
-    left: -260px; /* 初期状態は隠す */
-    width: 250px;
     height: 100%;
-    background-color: white;
+    width: 250px;
+    position: fixed;
     z-index: 1050;
-    transition: 0.3s ease;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    top: 0;
+    left: -250px; /* 初期状態は隠す */
+    background-color: #333;
+    overflow-x: hidden;
+    transition: 0.3s;
+    padding-top: 60px;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.5);
 }
 
 .side-nav.open {
-    left: 0;
+    left: 0; /* 表示 */
 }
 
 .nav-header {
-    background-color: #4CAF50;
-    color: white;
-    padding: 20px;
-    font-weight: bold;
-    font-size: 1.2rem;
+    color: #bbb;
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    border-bottom: 1px solid #444;
+    margin-bottom: 10px;
 }
 
-.side-nav .tab-button {
-    width: 100%;
+.nav-links button {
+    padding: 15px 20px;
+    text-decoration: none;
+    font-size: 1rem;
+    color: white;
+    display: block;
+    transition: 0.3s;
     background: none;
     border: none;
-    border-radius: 0;
-    border-bottom: 1px solid #f0f0f0;
-    color: #333;
+    width: 100%;
     text-align: left;
-    padding: 15px 20px;
-    box-shadow: none;
-    font-size: 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #444;
 }
 
-.side-nav .tab-button.active {
-    background-color: #e8f5e9;
-    color: #4CAF50;
+.nav-links button:hover, .nav-links button.active {
+    background-color: #575757;
     border-left: 5px solid #4CAF50;
 }
 
-/* オーバーレイ */
+/* 背景オーバーレイ */
 .nav-overlay {
-    display: none;
     position: fixed;
-    top: 0;
-    left: 0;
+    display: none;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.5);
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0,0,0,0.5);
     z-index: 1040;
 }
 
 .nav-overlay.show {
     display: block;
 }
-/* サイドナビ内のボタンエリアを広げる */
-.nav-links {
-    flex-grow: 1;
-    overflow-y: auto;
-}
 
-/* メニュー下部の固定エリア */
-.nav-footer {
-    padding: 20px;
-    border-top: 1px solid #eee;
-    background-color: #fafafa;
-}
-
-/* ログアウトボタン専用スタイル */
-.logout-menu-button {
-    width: 100% !important;
-    background-color: #f44336 !important; /* 赤色 */
-    color: white !important;
-    padding: 12px !important;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    font-weight: bold;
-    border: none;
-    cursor: pointer;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.logout-menu-button:active {
-    background-color: #d32f2f !important;
-}
-
-/* ヘッダーの右側の余白調整 */
-.header-right {
-    padding-right: 5px;
-}
-
-/* メインコンテナ */
+/* =========================================
+   コンテンツエリア
+   ========================================= */
 .container {
     padding: 15px;
-    max-width: 600px;
-    margin: 0 auto;
-    padding-bottom: 80px;
+    margin-top: 0; /* ヘッダーのstickyに対応 */
 }
 
-/* コンテンツエリア */
 .tab-content {
-    display: none;
     animation: fadeIn 0.3s ease;
-}
-.tab-content.active {
-    display: block;
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
-h2 {
-    font-size: 1.1rem;
-    color: #4CAF50;
-    border-left: 4px solid #4CAF50;
-    padding-left: 10px;
+/* =========================================
+   ▼▼▼ カメラ・ビデオ表示エリア (修正箇所) ▼▼▼
+   ========================================= */
+.camera-box {
+    width: 100%;
+    max-width: 500px;        /* PCでも大きくなりすぎないように */
+    height: auto;
+    aspect-ratio: 4 / 3;     /* アスペクト比を維持 */
+    max-height: 40vh;        /* ★重要: 画面の高さの40%までに制限 */
+    margin: 0 auto 15px auto;
+    background-color: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 枠に合わせてトリミングして埋める */
+    /* object-fit: contain; // 全体を表示したい場合はこちらに変更 */
+    transform: scaleX(-1); /* 鏡のように反転させる */
+}
+/* ▲▲▲ 修正ここまで ▲▲▲ */
+
+
+/* フォーム要素 */
+.control-group {
     margin-bottom: 15px;
-    margin-top: 10px;
+    background: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-/* 以下、既存のスタイルを継承 */
-.user-details { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+.control-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #555;
+}
 
-#logoutButton { background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255,255,255,0.5); color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; }
+.control-group select, .control-group input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+}
 
-.camera-container { width: 100%; background: #000; border-radius: 8px; overflow: hidden; margin-bottom: 15px; position: relative; padding-top: 75%; }
-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+/* ボタン */
+button {
+    width: 100%;
+    padding: 12px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: background 0.3s;
+}
 
-input[type="text"], input[type="date"], input[type="month"], select { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
-button { width: 100%; padding: 14px; background-color: #4CAF50; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; cursor: pointer; touch-action: manipulation; }
-button:active { background-color: #388E3C; }
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
 
-.message { margin-top: 15px; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; background: #e8f5e9; color: #2e7d32; }
-.absence-row { display: flex; align-items: center; margin-bottom: 10px; background: white; padding: 10px; border-radius: 8px; border: 1px solid #eee; }
-.absence-row span { width: 50px; font-weight: bold; }
-.absence-row select { margin-bottom: 0; }
+button:active {
+    transform: translateY(1px);
+}
 
-.chat-window { height: 350px; overflow-y: scroll; border: 1px solid #ddd; padding: 15px; background: #e5ddd5; margin-bottom: 15px; border-radius: 8px; }
-.message-bubble { max-width: 80%; margin-bottom: 10px; padding: 10px 14px; border-radius: 18px; word-wrap: break-word; font-size: 0.95rem; }
-.message-bubble.mine { background-color: #dcf8c6; margin-left: auto; border-bottom-right-radius: 4px; }
-.message-bubble.theirs { background-color: white; margin-right: auto; border-bottom-left-radius: 4px; }
-.message-time { font-size: 0.7rem; color: #999; text-align: right; }
-
-.table-responsive { width: 100%; overflow-x: auto; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ddd; }
-table { width: 100%; border-collapse: collapse; background: white; }
-th, td { padding: 12px 10px; border-bottom: 1px solid #eee; white-space: nowrap; font-size: 0.9rem; }
-th { background-color: #f5f5f5; }
-
-.month-calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; background: #ddd; border-radius: 8px; overflow: hidden; }
-.month-day-header { background: #f0f0f0; padding: 5px; text-align: center; font-size: 0.8rem; font-weight: bold; }
-.month-day { background: white; min-height: 60px; padding: 2px; font-size: 0.7rem; }
-.day-number { font-weight: bold; }
-.mini-badge { background: #e3f2fd; color: #1565c0; padding: 1px 2px; border-radius: 3px; margin-bottom: 1px; font-size: 0.6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* ヘッダー右側のユーザー情報エリア */
-.header-right {
+/* 欠席届の行デザイン */
+.absence-row {
     display: flex;
     align-items: center;
-    /* 右端から少し離したい場合はここを調整 (例: 10px) */
-    padding-right: 8px; 
+    margin-bottom: 10px;
+    background: #fff;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #eee;
 }
 
-.user-details {
-    display: flex;
-    flex-direction: column; 
-    /* 右寄せにする（IDとお名前の末尾を揃える） */
-    align-items: flex-end;   
-    line-height: 1.1; /* 行間が詰まりすぎていたので少し広げました */
-    /* 左側に少しマージンを入れてボタン類との間隔を確保 */
-    margin-right: 5px; 
-}
-
-#studentIdDisplay {
-    font-size: 0.7rem;    
-    opacity: 0.9;
-    /* IDを左に少しだけずらしたい場合は margin-right を入れる */
-    margin-right: 2px; 
-}
-
-#studentName {
+.absence-row span {
+    width: 50px;
     font-weight: bold;
-    font-size: 0.9rem;    
-    white-space: nowrap; /* 名前が長い時に改行されないように */
+    color: #333;
+}
+
+.absence-row select {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+/* チャット */
+.chat-window {
+    height: 300px;
+    overflow-y: scroll;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+}
+
+.message-bubble {
+    padding: 8px 12px;
+    border-radius: 15px;
+    margin-bottom: 8px;
+    max-width: 80%;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.message-bubble.mine {
+    background-color: #dcf8c6;
+    margin-left: auto;
+    text-align: right;
+}
+
+.message-bubble.theirs {
+    background-color: #fff;
+    border: 1px solid #eee;
+    margin-right: auto;
+}
+
+.message-time {
+    font-size: 0.7rem;
+    color: #888;
+    margin-top: 2px;
+    text-align: right;
+}
+
+/* カレンダー */
+#scheduleContainer {
+    margin-top: 10px;
+}
+.month-calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    background: #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.month-day-header {
+    background: #f0f0f0;
+    padding: 8px 2px;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+.month-day {
+    background: white;
+    min-height: 60px;
+    padding: 2px;
+    display: flex;
+    flex-direction: column;
+}
+.day-number {
+    font-size: 0.8rem;
+    font-weight: bold;
+    margin-bottom: 2px;
+    text-align: center;
+}
+.mini-badge {
+    font-size: 0.65rem;
+    background-color: #e3f2fd;
+    color: #0d47a1;
+    padding: 2px;
+    border-radius: 3px;
+    margin-bottom: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* テーブル */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+th, td {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 0.9rem;
+    text-align: left;
+}
+th {
+    background-color: #f8f9fa;
+    font-weight: bold;
 }
