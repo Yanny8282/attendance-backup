@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log("AI Models Loaded");
     } catch(e) {
         console.error("AI Model Error:", e);
+        alert("AIモデルの読み込みに失敗しました。ページの再読み込みを試してください。");
     }
 });
 
@@ -120,7 +121,13 @@ function stopCamera() {
 
 async function getFaceDescriptor(vidId) {
     const video = document.getElementById(vidId);
-    if (!faceapi.nets.ssdMobilenetv1.params || video.paused || video.ended || !video.srcObject) return null;
+    // モデルがロードされているか厳密にチェック
+    if (!faceapi.nets.ssdMobilenetv1.params) {
+        alert("AIモデルがまだ読み込まれていません。少し待ってから再度お試しください。");
+        return null;
+    }
+    if (video.paused || video.ended || !video.srcObject) return null;
+    
     const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
     if (!detection) return null;
     return Array.from(detection.descriptor); 
@@ -145,7 +152,7 @@ function setupEvents(sid) {
             });
             alert("登録完了");
         } catch(e) {
-            console.error(e); alert("エラーが発生しました");
+            console.error(e); alert("エラーが発生しました: " + e);
         } finally {
             btn.disabled = false;
         }
@@ -247,7 +254,6 @@ function setupEvents(sid) {
         });
     };
 
-    // ▼▼▼ 欠席連絡: 重複チェック追加 ▼▼▼
     document.getElementById('submitAbsenceButton').onclick = async () => {
         const date = document.getElementById('absenceDate').value;
         const reason = document.getElementById('absenceReason').value;
@@ -263,7 +269,6 @@ function setupEvents(sid) {
         if(reports.length === 0) { alert("連絡するコマの状態を1つ以上選択してください"); return; }
         if(!reason) { alert("理由を入力してください"); return; }
 
-        // --- 重複チェック開始 ---
         try {
             const checkRes = await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${date}&end_date=${date}`);
             const checkData = await checkRes.json();
@@ -279,14 +284,12 @@ function setupEvents(sid) {
 
                 if (duplicates.length > 0) {
                     alert(`以下のコマは既に登録済みのため送信できません:\n${duplicates.join(', ')}\n\n日付を確認するか、教員へ連絡してください。`);
-                    return; // ★ここで処理を中断！送信しません
+                    return; 
                 }
             }
         } catch(e) {
             console.error("Duplicate check error", e);
-            // チェックに失敗した場合は念のため進めるか、エラーを出すか。今回は安全策で進めますがコンソールにログ
         }
-        // --- 重複チェック終了 ---
 
         try {
             const res = await fetch(`${API_BASE_URL}/report_absence`, {
@@ -305,7 +308,6 @@ function setupEvents(sid) {
             console.error(e); alert("通信エラー");
         }
     };
-    // ▲▲▲ 欠席連絡修正ここまで ▲▲▲
 
     document.getElementById('sendChatButton').onclick = async () => {
         const txt = document.getElementById('chatInput').value;
