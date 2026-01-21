@@ -421,14 +421,15 @@ def get_student_attendance_range():
 @app.route(f'{API_BASE_URL}/get_absence_reports')
 def get_absence_reports():
     dt, cls = request.args.get('date'), request.args.get('class_id')
-    q = "SELECT ar.*, c.course_name, s.student_name, s.class_id, CASE WHEN ar.status_id=3 THEN '欠席' WHEN ar.status_id=2 THEN '遅刻' WHEN ar.status_id=4 THEN '早退' ELSE 'その他' END AS status_name FROM attendance_records ar JOIN students s ON ar.student_id=s.student_id LEFT JOIN courses c ON ar.course_id=c.course_id WHERE (ar.reason IS NOT NULL OR ar.status_id IN (2,3,4))"
+    # ★変更点: (理由がある OR 欠席ステータス) だったのを (理由がある) のみに変更
+    q = "SELECT ar.*, c.course_name, s.student_name, s.class_id, CASE WHEN ar.status_id=3 THEN '欠席' WHEN ar.status_id=2 THEN '遅刻' WHEN ar.status_id=4 THEN '早退' ELSE 'その他' END AS status_name FROM attendance_records ar JOIN students s ON ar.student_id=s.student_id LEFT JOIN courses c ON ar.course_id=c.course_id WHERE ar.reason IS NOT NULL AND ar.reason <> ''"
     p = []
     if dt: q+=" AND ar.attendance_date=%s"; p.append(dt)
     if cls and cls!='all': q+=" AND s.class_id=%s"; p.append(cls)
     res = execute_query(q+" ORDER BY ar.attendance_date DESC, s.student_id ASC, ar.koma ASC", tuple(p), fetch=True)
     for r in res: 
         r['attendance_date'] = r['attendance_date'].isoformat()
-        if r.get('attendance_time'): r['attendance_time'] = str(r['attendance_time']) # ★追加した行
+        if r.get('attendance_time'): r['attendance_time'] = str(r['attendance_time']) # ★エラー対策
         if not r['course_name']: r['course_name'] = '-'
     return jsonify({'success': True, 'reports': res})
 
