@@ -76,8 +76,33 @@ async function initData() {
         
         const schSel = document.getElementById('scheduleClassSelect');
         if(schSel && schSel.options.length > 0) schSel.value = schSel.options[0].value;
+
+        // ★追加: 現在時刻からコマを自動選択
+        autoSelectCurrentKoma();
         
     } catch(e) { console.error("データ初期化エラー:", e); }
+}
+
+// ★修正: 休み時間に入ったら「次のコマ」を選択するロジック
+function autoSelectCurrentKoma() {
+    const now = new Date();
+    const min = now.getHours() * 60 + now.getMinutes();
+    let currentKoma = 1; // デフォルトは1限
+
+    // 授業終了時刻を基準に切り替える
+    // 1限終了: 10:45 (645分) → これを過ぎたら2限
+    // 2限終了: 12:30 (750分) → これを過ぎたら3限
+    // 3限終了: 15:00 (900分) → これを過ぎたら4限
+    
+    if (min < 645) currentKoma = 1;      // 〜 10:45 (1限中)
+    else if (min < 750) currentKoma = 2; // 〜 12:30 (休み時間・2限中)
+    else if (min < 900) currentKoma = 3; // 〜 15:00 (昼休み・3限中)
+    else currentKoma = 4;                // 15:00 以降 (休み時間・4限・放課後)
+
+    const komaSelect = document.getElementById('realtimeKoma');
+    if (komaSelect) {
+        komaSelect.value = currentKoma;
+    }
 }
 
 function setupEvents() {
@@ -432,6 +457,9 @@ async function loadCalStudents() {
     const s = document.getElementById('calStudentSelect'); 
     s.innerHTML = '<option value="">選択してください</option>'; // 初期値
     d.students.forEach(i=>{ const o=document.createElement('option'); o.value=i.student_id; o.textContent=i.student_name; s.appendChild(o); });
+    
+    // ★追加: リストを再読み込みしたら、表示中のカレンダーはクリアする
+    document.getElementById('calendarContainer').innerHTML = '';
 }
 
 // カレンダー生成ロジック

@@ -47,6 +47,7 @@ STATUS_NAMES = {
     4: "早退"
 }
 
+# 授業開始時間定義
 PERIOD_START_TIMES = { 
     1: "09:10", 
     2: "11:00", 
@@ -190,13 +191,28 @@ def check_in():
         now = datetime.datetime.now()
         today = datetime.date.today().isoformat()
         
+        # --- 時間判定ロジック ---
         start_str = PERIOD_START_TIMES.get(int(koma), "00:00")
         start_dt = datetime.datetime.combine(datetime.date.today(), datetime.datetime.strptime(start_str, "%H:%M").time())
         
-        st_id = 1
-        if now > start_dt + timedelta(minutes=30): st_id = 3
-        elif now > start_dt: st_id = 2
+        # 1. 開始5分前チェック
+        allow_start_dt = start_dt - timedelta(minutes=5)
+        if now < allow_start_dt:
+            # まだ早すぎる場合
+            wait_min = int((allow_start_dt - now).total_seconds() / 60) + 1
+            return jsonify({'success': False, 'message': f'{koma}限の出席登録は授業開始5分前({start_str}の5分前)からです。あと約{wait_min}分お待ちください。'}), 400
 
+        # 2. ステータス判定 (開始3分後までは出席)
+        late_threshold = start_dt + timedelta(minutes=3)  # 3分後
+        absent_threshold = start_dt + timedelta(minutes=30) # 30分後 (欠席扱い)
+
+        st_id = 1 # デフォルト出席
+        if now > absent_threshold: 
+            st_id = 3 # 欠席 (システム上は30分遅れで欠席扱いとする場合)
+        elif now > late_threshold: 
+            st_id = 2 # 遅刻 (3分を過ぎたら遅刻)
+        
+        # 既存レコードチェック
         exist = execute_query("SELECT * FROM attendance_records WHERE student_id=%s AND attendance_date=%s AND koma=%s", (sid, today, koma), fetch=True)
         
         if exist:
@@ -207,7 +223,12 @@ def check_in():
         else:
             execute_query("INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, attendance_time) VALUES (%s,%s,%s,%s,%s,%s)", (sid, today, cid, koma, st_id, now.strftime('%H:%M:%S')))
         
-        return jsonify({'success': True, 'message': '出席を受け付けました'})
+        # メッセージ調整
+        res_msg = '出席を受け付けました'
+        if st_id == 2: res_msg = '遅刻として受け付けました'
+        if st_id == 3: res_msg = '欠席として記録されました'
+
+        return jsonify({'success': True, 'message': res_msg})
 
     except Exception as e:
         traceback.print_exc()
@@ -448,6 +469,7 @@ def get_student_attendance_range():
 @app.route(f'{API_BASE_URL}/get_absence_reports')
 def get_absence_reports():
     dt, cls = request.args.get('date'), request.args.get('class_id')
+    # ★変更点: (理由がある) のみを表示
     q = "SELECT ar.*, c.course_name, s.student_name, s.class_id, CASE WHEN ar.status_id=3 THEN '欠席' WHEN ar.status_id=2 THEN '遅刻' WHEN ar.status_id=4 THEN '早退' ELSE 'その他' END AS status_name FROM attendance_records ar JOIN students s ON ar.student_id=s.student_id LEFT JOIN courses c ON ar.course_id=c.course_id WHERE ar.reason IS NOT NULL AND ar.reason <> ''"
     p = []
     if dt: q+=" AND ar.attendance_date=%s"; p.append(dt)

@@ -17,6 +17,7 @@ const checkAuth = () => {
 
 // ▼▼▼ ページが表示されるたびに実行 (戻るボタン対策) ▼▼▼
 window.addEventListener('pageshow', (event) => {
+    // キャッシュから読み込まれた場合(persisted)も、通常表示もチェック
     checkAuth();
 });
 
@@ -373,10 +374,18 @@ async function autoSelectCourse() {
         const now = new Date();
         const min = now.getHours() * 60 + now.getMinutes();
         let tk = 0;
-        if (min >= 530 && min < 650) tk = 1;
-        else if (min >= 650 && min < 800) tk = 2;
-        else if (min >= 800 && min < 905) tk = 3;
-        else if (min >= 905 && min < 1020) tk = 4;
+        
+        // ★修正: 新しい時間割に対応 (1限:9:10-10:45, 2限:11:00-12:30, 3限:13:30-15:00, 4限:15:15-16:45)
+        // 判定: 「前の授業の終わり」から「今の授業の終わり」までを表示
+        // 1限(09:10-10:45) -> 〜 10:45(645)
+        // 2限(11:00-12:30) -> 10:45(645) 〜 12:30(750)
+        // 3限(13:30-15:00) -> 12:30(750) 〜 15:00(900)
+        // 4限(15:15-16:45) -> 15:00(900) 〜 
+        
+        if (min < 645) tk = 1;
+        else if (min >= 645 && min < 750) tk = 2;
+        else if (min >= 750 && min < 900) tk = 3;
+        else if (min >= 900) tk = 4;
         
         const info = document.getElementById('autoSelectInfo');
         if (tk > 0) {
