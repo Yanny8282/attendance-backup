@@ -282,15 +282,15 @@ function setupEvents() {
     document.getElementById('chatClassFilter').onchange = loadChatStudents;
     document.getElementById('chatStudentSelect').onchange = loadChatHist;
     
-    // ▼▼▼ チャット送信ボタンの連打防止 ▼▼▼
+    // ▼▼▼ チャット送信ボタン (連打防止 & 空白対策) ▼▼▼
     document.getElementById('teacherSendChatButton').onclick = async () => {
         const btn = document.getElementById('teacherSendChatButton');
-        const txt = document.getElementById('teacherChatInput').value;
+        // ★修正: .trim() を追加
+        const txt = document.getElementById('teacherChatInput').value.trim();
         const sid = document.getElementById('chatStudentSelect').value;
         
         if(!txt||!sid) return;
 
-        // ★ボタンを無効化
         btn.disabled = true;
 
         try {
@@ -300,7 +300,6 @@ function setupEvents() {
             console.error(e);
             alert("送信エラー");
         } finally {
-            // ★処理終了後にボタンを有効化
             btn.disabled = false;
         }
     };
@@ -319,7 +318,8 @@ function setupEvents() {
     };
 
     document.getElementById('submitBroadcast').onclick = async () => {
-        const content = document.getElementById('broadcastInput').value;
+        // ★修正: .trim() を追加
+        const content = document.getElementById('broadcastInput').value.trim();
         const btn = document.getElementById('submitBroadcast');
         
         const selectedClasses = [];
@@ -371,7 +371,7 @@ async function loadRealtime() {
     tb.innerHTML='';
     d.records.forEach(r => {
         let cls = r.attendance_status==='出席'?'status-present':(r.attendance_status==='欠席'?'status-absent':'');
-        // ★修正: 変更ボタンを「詳細」ボタンに変更し、生徒ページへのジャンプ関数を呼ぶように変更
+        const cid = r.course_id || 0; 
         tb.innerHTML += `
             <tr>
                 <td>${r.student_id}</td>

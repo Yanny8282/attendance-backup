@@ -17,7 +17,6 @@ const checkAuth = () => {
 
 // ▼▼▼ ページが表示されるたびに実行 (戻るボタン対策) ▼▼▼
 window.addEventListener('pageshow', (event) => {
-    // キャッシュから読み込まれた場合(persisted)も、通常表示もチェック
     checkAuth();
 });
 
@@ -309,15 +308,15 @@ function setupEvents(sid) {
         }
     };
 
-    // ▼▼▼ チャット送信ボタンの連打防止 ▼▼▼
+    // ▼▼▼ チャット送信ボタン (連打防止 & 空白対策) ▼▼▼
     document.getElementById('sendChatButton').onclick = async () => {
         const btn = document.getElementById('sendChatButton');
-        const txt = document.getElementById('chatInput').value;
+        // ★修正: .trim() を追加して空白のみを無効化
+        const txt = document.getElementById('chatInput').value.trim();
         const tid = document.getElementById('chatTeacherSelect').value;
         
         if(!txt || !tid) return;
 
-        // ★ボタンを無効化
         btn.disabled = true;
 
         try {
@@ -331,7 +330,6 @@ function setupEvents(sid) {
             console.error(e);
             alert("送信エラー");
         } finally {
-            // ★処理終了後にボタンを有効化
             btn.disabled = false;
         }
     };
