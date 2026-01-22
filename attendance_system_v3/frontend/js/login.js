@@ -1,6 +1,17 @@
 // ★修正箇所: HTTPS化に伴い、相対パスに変更
 const API_BASE_URL = '/api';
 
+// ▼▼▼ ページ表示時にフォームをクリア (戻るボタン対策) ▼▼▼
+window.addEventListener('pageshow', () => {
+    const idInput = document.getElementById('id');
+    const passInput = document.getElementById('password');
+    const msg = document.getElementById('message');
+    
+    if(idInput) idInput.value = '';
+    if(passInput) passInput.value = '';
+    if(msg) msg.textContent = '';
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     const loginBtn = document.getElementById('loginButton');
     const idInput = document.getElementById('id');
@@ -36,7 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 msg.style.color = 'green';
                 msg.textContent = 'ログイン成功。移動します...';
                 setTimeout(() => {
-                    location.href = ret.role === 'student' ? '../html/student.html' : '../html/teacher.html';
+                    // ★変更: 履歴を残さないように replace を使用
+                    location.replace(ret.role === 'student' ? '../html/student.html' : '../html/teacher.html');
                 }, 500);
             } else {
                 msg.style.color = 'red';

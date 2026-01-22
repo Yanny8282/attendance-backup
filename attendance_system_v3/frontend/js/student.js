@@ -309,17 +309,34 @@ function setupEvents(sid) {
         }
     };
 
+    // ▼▼▼ チャット送信ボタンの連打防止 ▼▼▼
     document.getElementById('sendChatButton').onclick = async () => {
+        const btn = document.getElementById('sendChatButton');
         const txt = document.getElementById('chatInput').value;
         const tid = document.getElementById('chatTeacherSelect').value;
+        
         if(!txt || !tid) return;
-        await fetch(`${API_BASE_URL}/chat/send`, {
-            method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({sender_id: sid, receiver_id: tid, content: txt})
-        });
-        document.getElementById('chatInput').value = '';
-        loadChatHistory();
+
+        // ★ボタンを無効化
+        btn.disabled = true;
+
+        try {
+            await fetch(`${API_BASE_URL}/chat/send`, {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({sender_id: sid, receiver_id: tid, content: txt})
+            });
+            document.getElementById('chatInput').value = '';
+            loadChatHistory();
+        } catch(e) {
+            console.error(e);
+            alert("送信エラー");
+        } finally {
+            // ★処理終了後にボタンを有効化
+            btn.disabled = false;
+        }
     };
+    // ▲▲▲ 修正ここまで ▲▲▲
+
     document.getElementById('chatTeacherSelect').onchange = loadChatHistory;
     document.getElementById('studentScheduleMonth').onchange = loadMySchedule;
 }

@@ -289,7 +289,8 @@ def student_records():
     res = execute_query("SELECT ar.attendance_date, ar.koma, c.course_name, ar.attendance_time, sc.status_name as attendance_status FROM attendance_records ar LEFT JOIN courses c ON ar.course_id=c.course_id JOIN status_codes sc ON ar.status_id=sc.status_id WHERE ar.student_id=%s ORDER BY ar.attendance_date DESC, ar.koma DESC", (request.args.get('student_id'),), fetch=True)
     for r in res:
         if r['attendance_date']: r['attendance_date'] = r['attendance_date'].isoformat()
-        if r['attendance_time']: r['attendance_time'] = str(r['attendance_time'])
+        # ★重要修正: 時間が00:00:00でも文字列化する
+        if r['attendance_time'] is not None: r['attendance_time'] = str(r['attendance_time'])
         if not r['course_name']: r['course_name'] = '-'
     return jsonify({'success': True, 'records': res or []})
 
@@ -310,7 +311,8 @@ def realtime_status():
     if cls and cls != 'all': q += " WHERE s.class_id=%s"; p.append(cls)
     res = execute_query(q + " ORDER BY s.student_id", tuple(p), fetch=True)
     for r in res:
-        if r['time']: r['time'] = str(r['time'])
+        # ★重要修正: 時間が00:00:00でも文字列化する
+        if r['time'] is not None: r['time'] = str(r['time'])
         if not r['attendance_status']: r['attendance_status'] = '未出席'
         if not r['course_name']: r['course_name'] = '-'
     return jsonify({'success': True, 'records': res})
@@ -446,7 +448,6 @@ def get_student_attendance_range():
 @app.route(f'{API_BASE_URL}/get_absence_reports')
 def get_absence_reports():
     dt, cls = request.args.get('date'), request.args.get('class_id')
-    # ★変更点: (理由がある OR 欠席ステータス) だったのを (理由がある) のみに変更
     q = "SELECT ar.*, c.course_name, s.student_name, s.class_id, CASE WHEN ar.status_id=3 THEN '欠席' WHEN ar.status_id=2 THEN '遅刻' WHEN ar.status_id=4 THEN '早退' ELSE 'その他' END AS status_name FROM attendance_records ar JOIN students s ON ar.student_id=s.student_id LEFT JOIN courses c ON ar.course_id=c.course_id WHERE ar.reason IS NOT NULL AND ar.reason <> ''"
     p = []
     if dt: q+=" AND ar.attendance_date=%s"; p.append(dt)
@@ -454,7 +455,8 @@ def get_absence_reports():
     res = execute_query(q+" ORDER BY ar.attendance_date DESC, s.student_id ASC, ar.koma ASC", tuple(p), fetch=True)
     for r in res: 
         r['attendance_date'] = r['attendance_date'].isoformat()
-        if r.get('attendance_time'): r['attendance_time'] = str(r['attendance_time']) # ★エラー対策
+        # ★重要修正: 時間が00:00:00でも文字列化する (is not Noneを使用)
+        if r.get('attendance_time') is not None: r['attendance_time'] = str(r['attendance_time'])
         if not r['course_name']: r['course_name'] = '-'
     return jsonify({'success': True, 'reports': res})
 

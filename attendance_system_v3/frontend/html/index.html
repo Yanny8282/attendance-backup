@@ -2,6 +2,9 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ログイン | 出席管理システム</title>
     <link rel="stylesheet" href="../css/common.css">
@@ -15,8 +18,8 @@
 <body>
     <div class="login-card">
         <h2>ログイン</h2>
-        <input type="text" id="id" placeholder="ID (生徒:数字4桁 / 教員:英数)">
-        <input type="password" id="password" placeholder="パスワード">
+        <input type="text" id="id" placeholder="ID (生徒:数字4桁 / 教員:英数)" autocomplete="off">
+        <input type="password" id="password" placeholder="パスワード" autocomplete="off">
         <button id="loginButton">ログイン</button>
         <p id="message" style="color: red; margin-top: 15px;"></p>
     </div>

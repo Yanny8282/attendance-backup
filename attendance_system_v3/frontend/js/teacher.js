@@ -281,13 +281,30 @@ function setupEvents() {
 
     document.getElementById('chatClassFilter').onchange = loadChatStudents;
     document.getElementById('chatStudentSelect').onchange = loadChatHist;
+    
+    // ▼▼▼ チャット送信ボタンの連打防止 ▼▼▼
     document.getElementById('teacherSendChatButton').onclick = async () => {
+        const btn = document.getElementById('teacherSendChatButton');
         const txt = document.getElementById('teacherChatInput').value;
         const sid = document.getElementById('chatStudentSelect').value;
+        
         if(!txt||!sid) return;
-        await fetch(`${API_BASE_URL}/chat/send`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sender_id:sessionStorage.getItem('user_id'), receiver_id:sid, content:txt})});
-        document.getElementById('teacherChatInput').value=''; loadChatHist();
+
+        // ★ボタンを無効化
+        btn.disabled = true;
+
+        try {
+            await fetch(`${API_BASE_URL}/chat/send`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sender_id:sessionStorage.getItem('user_id'), receiver_id:sid, content:txt})});
+            document.getElementById('teacherChatInput').value=''; loadChatHist();
+        } catch(e) {
+            console.error(e);
+            alert("送信エラー");
+        } finally {
+            // ★処理終了後にボタンを有効化
+            btn.disabled = false;
+        }
     };
+    // ▲▲▲ 修正ここまで ▲▲▲
 
     document.getElementById('broadcastChatButton').onclick = () => {
         const container = document.getElementById('broadcastClassCheckboxes');
@@ -354,7 +371,7 @@ async function loadRealtime() {
     tb.innerHTML='';
     d.records.forEach(r => {
         let cls = r.attendance_status==='出席'?'status-present':(r.attendance_status==='欠席'?'status-absent':'');
-        const cid = r.course_id || 0; 
+        // ★修正: 変更ボタンを「詳細」ボタンに変更し、生徒ページへのジャンプ関数を呼ぶように変更
         tb.innerHTML += `
             <tr>
                 <td>${r.student_id}</td>
@@ -363,10 +380,50 @@ async function loadRealtime() {
                 <td>${r.course_name}</td>
                 <td class="${cls}">${r.attendance_status}</td>
                 <td>${r.time||'-'}</td>
-                <td><button onclick="openStModal(${r.student_id},'${r.student_name}', ${cid}, ${document.getElementById('realtimeKoma').value}, '${document.getElementById('realtimeDate').value}')">変更</button></td>
+                <td><button onclick="jumpToStudentDetail(${r.student_id}, '${r.class_id||''}')" style="background-color: #17a2b8;">詳細</button></td>
             </tr>`;
     });
 }
+
+// ★追加: リアルタイム画面から生徒詳細ページへ遷移する関数
+window.jumpToStudentDetail = async (sid, classId) => {
+    // 1. タブを「生徒別出席簿」に切り替え
+    document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+    const targetBtn = document.querySelector('.tab-button[data-tab="student-attendance"]');
+    if(targetBtn) targetBtn.classList.add('active');
+    
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display='none');
+    const targetContent = document.getElementById('student-attendance');
+    if(targetContent) targetContent.style.display='block';
+
+    // 2. クラスフィルタを選択
+    const classSelect = document.getElementById('calClassFilter');
+    const targetClassStr = String(classId); // 文字列として比較
+    
+    // プルダウンにそのクラスが存在するか確認してからセット
+    let classExists = false;
+    for(let i=0; i<classSelect.options.length; i++){
+        if(classSelect.options[i].value === targetClassStr){
+            classExists = true;
+            break;
+        }
+    }
+    classSelect.value = classExists ? targetClassStr : 'all';
+
+    // 3. 日付を同期 (リアルタイム画面の日付をカレンダーの基準日にセット)
+    const rtDate = document.getElementById('realtimeDate').value;
+    if(rtDate) document.getElementById('calBaseDate').value = rtDate;
+
+    // 4. 生徒リストを再読み込み (awaitで完了を待つ)
+    await loadCalStudents();
+
+    // 5. 生徒を選択
+    const studentSelect = document.getElementById('calStudentSelect');
+    studentSelect.value = sid;
+
+    // 6. カレンダーを表示
+    loadCalendar();
+};
 
 async function loadCalStudents() {
     const cid = document.getElementById('calClassFilter').value;
