@@ -206,7 +206,6 @@ function setupEvents() {
         // エラーチェック
         let errorMsg = [];
         if(!sid) errorMsg.push("・学籍番号を入力してください");
-        // ★修正: 6桁チェックを追加
         else if(sid.length !== 6) errorMsg.push("・学籍番号は6桁で入力してください");
         
         if(!sname) errorMsg.push("・氏名を入力してください");
@@ -262,6 +261,9 @@ function setupEvents() {
 
         let errorMsg = [];
         if(!tid) errorMsg.push("・教員IDを入力してください");
+        // ★修正: T + 5桁チェック
+        else if(!/^T\d{5}$/.test(tid)) errorMsg.push("・教員IDは「T」で始まる数字5桁で入力してください（例: T12345）");
+
         if(!tname) errorMsg.push("・氏名を入力してください");
         if(!email) errorMsg.push("・Emailを入力してください");
         if(!pass) errorMsg.push("・パスワードを入力してください");
