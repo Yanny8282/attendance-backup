@@ -125,7 +125,7 @@ header h1 {
 
 .nav-links button:hover, .nav-links button.active {
     background-color: #575757;
-    border-left: 5px solid #4CAF50;
+    border-left: 5px solid #575757;
 }
 
 /* 背景オーバーレイ */

@@ -58,21 +58,23 @@
                 <label>年月: <input type="month" id="scheduleMonthInput"></label>
             </div>
             
-            <div style="margin:10px 0; background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #ddd;">
-                <strong>編集モード:</strong>
-                <label style="margin-right:15px;"><input type="radio" name="schMode" value="single" checked> 個別クリックで編集</label>
-                <label><input type="radio" name="schMode" value="multi"> 複数選択して一括適用</label>
-                
-                <span id="multiControls" style="display:none; margin-left:15px; padding-left:15px; border-left:2px solid #ccc;">
-                    <label>適用する授業: <select id="schMultiCourseSelect"></select></label>
-                    <button id="schMultiApplyBtn">選択した日に適用</button>
-                </span>
-
-                <span style="float:right;">
-                    新規授業マスタ登録: <input type="text" id="newCourseName" placeholder="授業名" size="12">
+            <div style="margin-bottom: 15px; padding: 5px 0;">
+                    <label>新規授業マスタ登録: 
+                        <input type="text" id="newCourseName" placeholder="授業名" size="15">
+                    </label>
                     <button id="addCourseMasterBtn">追加</button>
-                </span>
-            </div>
+                </div>
+                
+                <div style="margin:10px 0; background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #ddd;">
+                    <strong>編集モード:</strong>
+                    <label style="margin-right:15px; white-space: nowrap;"><input type="radio" name="schMode" value="single" checked> 個別クリックで編集</label>
+                    <label style="white-space: nowrap;"><input type="radio" name="schMode" value="multi"> 複数選択して一括適用</label>
+                    
+                    <span id="multiControls" style="display:none; margin-left:15px; padding-left:15px; border-left:2px solid #ccc;">
+                        <label>適用する授業: <select id="schMultiCourseSelect"></select></label>
+                        <button id="schMultiApplyBtn">選択した日に適用</button>
+                    </span>
+                </div>
             
             <div id="scheduleCalendarWrapper"></div>
         </div>
@@ -80,10 +82,10 @@
         <div id="student-attendance" class="tab-content">
             <h2>📅 生徒別 出席カレンダー</h2>
             <div style="margin-bottom: 15px;">
-                <label>クラス: <select id="calClassFilter"><option value="all">全クラス</option></select></label>
-                <label>生徒: <select id="calStudentSelect"></select></label>
-                <label>表示形式: <select id="calViewType"><option value="month">月間</option><option value="week">週間</option></select></label>
-                <label>基準日: <input type="date" id="calBaseDate"></label>
+                <label style="white-space: nowrap;">クラス: <select id="calClassFilter"><option value="all">全クラス</option></select></label>
+                <label style="white-space: nowrap;">生徒: <select id="calStudentSelect"></select></label>
+                <label style="white-space: nowrap;">表示形式: <select id="calViewType"><option value="month">月間</option><option value="week">週間</option></select></label>
+                <label style="white-space: nowrap;">基準日: <input type="date" id="calBaseDate"></label>
                 <button id="showCalendarBtn">表示</button>
             </div>
             <div id="calendarContainer" style="margin-top:20px;"></div>
@@ -100,27 +102,27 @@
             <div id="studentForm" style="display:none;">
                 <h3>生徒情報の入力</h3>
                 <div>
-                    <label>学籍番号: <input type="number" id="crudSid" placeholder="例: 1001"></label>
-                    <label>氏名: <input type="text" id="crudSName"></label>
+                    <label style="white-space: nowrap;">学籍番号: <input type="number" id="crudSid" placeholder="例: 1001"></label>
+                    <label style="white-space: nowrap;">氏名: <input type="text" id="crudSName"></label>
                     
-                    <label>クラス: 
+                    <label style="white-space: nowrap;">クラス: 
                         <select id="crudSClassSelect" style="padding: 5px;"></select>
                         <input type="number" id="crudSClassInput" placeholder="新しいクラスID" style="display:none; width: 120px; margin-left: 5px;">
                     </label>
                 </div>
                 <div>
-                    <label>性別: 
+                    <label style="white-space: nowrap;">性別: 
                         <select id="crudSGen" style="padding: 5px;">
                             <option value="男">男</option>
                             <option value="女">女</option>
                             <option value="設定しない">設定しない</option>
                         </select>
                     </label>
-                    <label>生年月日: <input type="date" id="crudSBirth"></label>
+                    <label style="white-space: nowrap;">生年月日: <input type="date" id="crudSBirth"></label>
                 </div>
                 <div>
-                    <label>Email: <input type="email" id="crudSEmail" style="width:250px;"></label>
-                    <label>パスワード: 
+                    <label style="white-space: nowrap;">Email: <input type="email" id="crudSEmail" style="width:250px;"></label>
+                    <label style="white-space: nowrap;">パスワード: 
                         <div style="position:relative; display:inline-block;">
                             <input type="password" id="crudSPass" onfocus="this.select()" style="padding-right:30px;">
                             <span id="toggleSPass" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:1.2rem; user-select:none;">👁️</span>
@@ -155,16 +157,16 @@
             <div id="teacherForm" style="display:none;">
                 <h3>教員情報の入力</h3>
                 <div>
-                    <label>教員ID: <input type="text" id="crudTid" placeholder="例: T001"></label>
-                    <label>氏名: <input type="text" id="crudTName"></label>
+                    <label style="white-space: nowrap;">教員ID: <input type="text" id="crudTid" placeholder="例: T001"></label>
+                    <label style="white-space: nowrap;">氏名: <input type="text" id="crudTName"></label>
                 </div>
                 <div style="margin: 10px 0;">
-                    <label>担当クラス(複数可):</label>
+                    <label style="white-space: nowrap;">担当クラス(複数可):</label>
                     <div id="crudTClassCheckboxes" style="border:1px solid #ccc; padding:10px; background:white; max-height:100px; overflow-y:scroll;"></div>
                 </div>
                 <div>
-                    <label>Email: <input type="email" id="crudTEmail" style="width:250px;"></label>
-                    <label>パスワード: 
+                    <label style="white-space: nowrap;">Email: <input type="email" id="crudTEmail" style="width:250px;"></label>
+                    <label style="white-space: nowrap;">パスワード: 
                         <div style="position:relative; display:inline-block;">
                             <input type="password" id="crudTPass" onfocus="this.select()" style="padding-right:30px;">
                             <span id="toggleTPass" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:1.2rem; user-select:none;">👁️</span>
@@ -218,7 +220,7 @@
             <div style="margin-bottom: 10px; display:flex; justify-content:space-between; align-items:center;">
                 <div>
                     <label>クラス: <select id="chatClassFilter"><option value="all">全クラス</option></select></label>
-                    <label>生徒を選択: <select id="chatStudentSelect"><option value="">選択してください</option></select></label>
+                    <label style="white-space: nowrap;">生徒を選択: <select id="chatStudentSelect"><option value="">選択してください</option></select></label>
                 </div>
                 <button id="broadcastChatButton" style="background-color:#ff9800;">📢 クラス一斉送信</button>
             </div>
