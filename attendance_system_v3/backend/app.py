@@ -111,16 +111,50 @@ def login():
             unread = unread_res[0]['c'] if unread_res else 0
             return jsonify({'success': True, 'role': 'teacher', 'user_id': u, 'unread_count': unread})
 
-        student = execute_query("SELECT s.student_id, s.class_id FROM students s JOIN student_auth sa ON s.student_id=sa.student_id WHERE s.student_id=%s AND sa.password=%s", (u, p), fetch=True)
+        # ★修正: face_encoding も取得してセットアップ済みか確認
+        student = execute_query("SELECT s.student_id, s.class_id, sa.face_encoding FROM students s JOIN student_auth sa ON s.student_id=sa.student_id WHERE s.student_id=%s AND sa.password=%s", (u, p), fetch=True)
         if student:
             unread_res = execute_query("SELECT COUNT(*) as c FROM chat_messages WHERE receiver_id=%s AND is_read=0", (u,), fetch=True)
             unread = unread_res[0]['c'] if unread_res else 0
-            return jsonify({'success': True, 'role': 'student', 'user_id': u, 'class_id': student[0]['class_id'], 'unread_count': unread})
+            
+            # 顔データがない場合はセットアップが必要
+            needs_setup = False
+            if not student[0]['face_encoding']:
+                needs_setup = True
+
+            return jsonify({
+                'success': True, 
+                'role': 'student', 
+                'user_id': u, 
+                'class_id': student[0]['class_id'], 
+                'unread_count': unread,
+                'needs_setup': needs_setup # ★追加
+            })
 
         return jsonify({'success': False, 'message': 'IDまたはパスワードが間違っています'}), 401
     except Exception as e:
         traceback.print_exc()
         return jsonify({'success': False, 'message': 'サーバーエラー'}), 500
+
+# ★追加: 初回セットアップ用API
+@app.route(f'{API_BASE_URL}/first_setup', methods=['POST'])
+def first_setup():
+    try:
+        d = request.json
+        sid = d.get('student_id')
+        new_pass = d.get('new_password')
+        desc = d.get('descriptor')
+
+        if not sid or not new_pass or not desc:
+            return jsonify({'success': False, 'message': 'データが不足しています'}), 400
+
+        # パスワードと顔データを更新
+        execute_query("UPDATE student_auth SET password=%s, face_encoding=%s WHERE student_id=%s", (new_pass, json.dumps(desc), sid))
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route(f'{API_BASE_URL}/get_student_info')
 def get_student_info():

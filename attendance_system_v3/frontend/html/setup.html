@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>初期設定 | 出席管理システム</title>
+    <link rel="stylesheet" href="../css/common.css">
+    <style>
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f4f7f6; }
+        .setup-card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 90%; max-width: 400px; text-align: center; }
+        .camera-box { width: 100%; height: 250px; background: #000; margin: 15px 0; border-radius: 8px; overflow: hidden; position: relative; }
+        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        input { width: 90%; padding: 10px; margin: 5px 0; border: 1px solid #ccc; border-radius: 5px; }
+        button { width: 100%; padding: 12px; margin-top: 15px; font-size: 1em; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .step-title { font-weight: bold; color: #555; margin: 20px 0 10px; text-align: left; }
+    </style>
+</head>
+<body>
+    <div class="setup-card">
+        <h2>👋 初回セットアップ</h2>
+        <p style="font-size:0.9rem; color:#666;">利用を開始するには、顔データの登録と新しいパスワードの設定が必要です。</p>
+
+        <div class="step-title">1. 顔データの登録</div>
+        <div class="camera-box">
+            <video id="videoSetup" autoplay playsinline></video>
+        </div>
+        <p id="faceStatus" style="font-size:0.8rem; color:red;">カメラを準備中...</p>
+
+        <div class="step-title">2. 新しいパスワード</div>
+        <input type="password" id="newPassword" placeholder="新しいパスワード">
+        <input type="password" id="confirmPassword" placeholder="パスワード（確認用）">
+
+        <button id="completeSetupBtn" disabled>設定を完了して開始</button>
+    </div>
+
+    <script src="../js/libs/face-api.min.js"></script>
+    <script src="../js/setup.js"></script>
+</body>
+</html>

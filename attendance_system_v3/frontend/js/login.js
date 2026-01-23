@@ -47,8 +47,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 msg.style.color = 'green';
                 msg.textContent = 'ログイン成功。移動します...';
                 setTimeout(() => {
-                    // ★変更: 履歴を残さないように replace を使用
-                    location.replace(ret.role === 'student' ? '../html/student.html' : '../html/teacher.html');
+                    // ★修正: 先生はteacher.html、生徒は初期設定が必要ならsetup.htmlへ
+                    if (ret.role === 'teacher') {
+                        location.replace('../html/teacher.html');
+                    } else {
+                        // 生徒の場合、セットアップ未完了なら setup.html へ
+                        if (ret.needs_setup) {
+                            location.replace('../html/setup.html');
+                        } else {
+                            location.replace('../html/student.html');
+                        }
+                    }
                 }, 500);
             } else {
                 msg.style.color = 'red';
