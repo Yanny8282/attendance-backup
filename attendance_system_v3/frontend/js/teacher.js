@@ -206,6 +206,9 @@ function setupEvents() {
         // エラーチェック
         let errorMsg = [];
         if(!sid) errorMsg.push("・学籍番号を入力してください");
+        // ★修正: 6桁チェックを追加
+        else if(sid.length !== 6) errorMsg.push("・学籍番号は6桁で入力してください");
+        
         if(!sname) errorMsg.push("・氏名を入力してください");
         if(!classIdVal) errorMsg.push("・クラスを選択または入力してください");
         if(!birth) errorMsg.push("・生年月日を入力してください");
