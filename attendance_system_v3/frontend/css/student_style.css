@@ -26,12 +26,33 @@ header h1 {
 }
 
 .header-right {
-    font-size: 0.8rem;
-    text-align: right;
+    display: flex;
+    align-items: center;
+    /* 右端から少し離したい場合はここを調整 (例: 10px) */
+    padding-right: 8px; 
 }
 
-.user-details span {
-    display: block;
+.user-details {
+    display: flex;
+    flex-direction: column; 
+    /* 右寄せにする（IDとお名前の末尾を揃える） */
+    align-items: flex-end;   
+    line-height: 1.1; /* 行間が詰まりすぎていたので少し広げました */
+    /* 左側に少しマージンを入れてボタン類との間隔を確保 */
+    margin-right: 5px; 
+}
+
+#studentIdDisplay {
+    font-size: 0.7rem;    
+    opacity: 0.9;
+    /* IDを左に少しだけずらしたい場合は margin-right を入れる */
+    margin-right: 2px; 
+}
+
+#studentName {
+    font-weight: bold;
+    font-size: 0.9rem;    
+    white-space: nowrap; /* 名前が長い時に改行されないように */
 }
 
 /* =========================================
@@ -104,7 +125,7 @@ header h1 {
 
 .nav-links button:hover, .nav-links button.active {
     background-color: #575757;
-    border-left: 5px solid #4CAF50;
+    /*border-left: 5px solid #ffffff;*/
 }
 
 /* 背景オーバーレイ */
