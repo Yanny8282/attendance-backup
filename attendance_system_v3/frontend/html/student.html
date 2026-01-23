@@ -50,8 +50,9 @@
                 </div>
                 <div class="control-group">
                     <label>授業: <select id="courseSelectCheckin"></select></label>
-                    <label>時限: <select id="komaSelectCheckin"></select></label>
-                </div>
+                    <label>時限: <input type="text" id="komaDisplayCheckin" readonly style="width:60px; text-align:center; background:#eee; border:1px solid #ccc; border-radius:4px;"></label>
+                    <input type="hidden" id="currentKomaId">
+                    </div>
                 <button id="checkInButton">出席する</button>
                 <p id="checkinMessage" style="margin-top: 15px; font-weight: bold;"></p>
             </div>

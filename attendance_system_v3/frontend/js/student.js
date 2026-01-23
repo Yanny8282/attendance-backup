@@ -163,13 +163,19 @@ function setupEvents(sid) {
         const btn = document.getElementById('checkInButton');
         const msg = document.getElementById('checkinMessage');
         const cid = document.getElementById('courseSelectCheckin').value;
-        const koma = document.getElementById('komaSelectCheckin').value;
+        // ★修正: hidden inputから値を取得
+        const koma = document.getElementById('currentKomaId').value;
         
         msg.style.display = 'block';
         btn.disabled = true;
 
-        if (!cid || !koma) {
-            msg.textContent = "⚠️ 授業とコマを選択してください";
+        if (!cid) {
+            msg.textContent = "⚠️ 授業が設定されていません";
+            btn.disabled = false;
+            return;
+        }
+        if (!koma) {
+            msg.textContent = "⚠️ 現在は打刻可能な時間帯ではありません";
             btn.disabled = false;
             return;
         }
@@ -361,7 +367,7 @@ async function initializeDropdowns() {
             list.forEach(i => { const o = document.createElement('option'); o.value=i[k]; o.textContent=i[v]; el.appendChild(o); });
         };
         set('courseSelectCheckin', d.courses, 'course_id', 'course_name');
-        set('komaSelectCheckin', d.komas, 'koma_id', 'koma_name');
+        // ★修正: コマ選択プルダウンは削除されたので初期化不要
         document.getElementById('absenceDate').value = new Date().toISOString().split('T')[0];
     } catch(e) {}
 }
@@ -375,27 +381,45 @@ async function autoSelectCourse() {
         const min = now.getHours() * 60 + now.getMinutes();
         let tk = 0;
         
-        // ★修正: 新しい時間割に対応 (1限:9:10-10:45, 2限:11:00-12:30, 3限:13:30-15:00, 4限:15:15-16:45)
-        // 判定: 「前の授業の終わり」から「今の授業の終わり」までを表示
-        // 1限(09:10-10:45) -> 〜 10:45(645)
-        // 2限(11:00-12:30) -> 10:45(645) 〜 12:30(750)
-        // 3限(13:30-15:00) -> 12:30(750) 〜 15:00(900)
-        // 4限(15:15-16:45) -> 15:00(900) 〜 
+        // ★修正: 新しい時間割に対応 & 自動設定
+        // 「開始5分前」から「授業終了」までを有効期間とする
+        // 1限(09:10-10:45) -> 09:05(545) 〜 10:45(645)
+        // 2限(11:00-12:30) -> 10:55(655) 〜 12:30(750)
+        // 3限(13:30-15:00) -> 13:25(805) 〜 15:00(900)
+        // 4限(15:15-16:45) -> 15:10(910) 〜 16:45(1005)
         
-        if (min < 645) tk = 1;
-        else if (min >= 645 && min < 750) tk = 2;
-        else if (min >= 750 && min < 900) tk = 3;
-        else if (min >= 900) tk = 4;
+        if (min >= 545 && min < 645) tk = 1;
+        else if (min >= 655 && min < 750) tk = 2;
+        else if (min >= 805 && min < 900) tk = 3;
+        else if (min >= 910 && min < 1005) tk = 4;
         
         const info = document.getElementById('autoSelectInfo');
+        const display = document.getElementById('komaDisplayCheckin');
+        const hidden = document.getElementById('currentKomaId');
+        
         if (tk > 0) {
             const item = d.schedule.find(s => s.koma === tk);
+            
+            // 画面表示更新
+            display.value = tk + '限';
+            hidden.value = tk;
+            
             if (item) {
                 document.getElementById('courseSelectCheckin').value = item.course_id;
-                document.getElementById('komaSelectCheckin').value = tk;
                 info.textContent = `📅 自動選択: ${tk}限 ${item.course_name}`;
-            } else info.textContent = `⚠️ ${tk}限 授業なし`;
-        } else info.textContent = "⚠️ 授業時間外";
+                document.getElementById('checkInButton').disabled = false;
+            } else {
+                info.textContent = `⚠️ ${tk}限 授業なし`;
+                // 授業がなくても打刻させるならdisabled不要だが、基本は無効化
+                document.getElementById('checkInButton').disabled = true;
+            }
+        } else {
+            // 時間外
+            display.value = '-';
+            hidden.value = '';
+            info.textContent = "⚠️ 現在は打刻時間外です";
+            document.getElementById('checkInButton').disabled = true;
+        }
     } catch(e) {}
 }
 
