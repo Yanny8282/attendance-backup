@@ -39,10 +39,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadStudentInfo(sid);
     initializeDropdowns();
     
+    // 日付初期設定
     const now = new Date();
-    document.getElementById('studentScheduleMonth').value = `${now.getFullYear()}-${('0'+(now.getMonth()+1)).slice(-2)}`;
-    loadMySchedule();
+    const currentMonthStr = `${now.getFullYear()}-${('0'+(now.getMonth()+1)).slice(-2)}`;
+    document.getElementById('studentScheduleMonth').value = currentMonthStr;
+    document.getElementById('recordCalendarMonth').value = currentMonthStr;
 
+    loadMySchedule();
+    // loadRecordCalendar(); // タブ切り替え時に呼ぶのでここでは呼ばなくてもOK
+    
     // AI Models Loading...
     try {
         await faceapi.nets.ssdMobilenetv1.loadFromUri('../models');
@@ -95,7 +100,7 @@ function setupTabs() {
             if(btn.dataset.tab === 'register-face') { startCamera('videoRegister'); }
             if(btn.dataset.tab === 'chat') { loadTeacherList(); startChatPolling(); }
             if(btn.dataset.tab === 'schedule-view') { loadMySchedule(); }
-            if(btn.dataset.tab === 'records') { loadRecords(); }
+            if(btn.dataset.tab === 'records') { loadRecordCalendar(); } // ★修正: カレンダー読み込み
         });
     });
 }
@@ -163,7 +168,6 @@ function setupEvents(sid) {
         const btn = document.getElementById('checkInButton');
         const msg = document.getElementById('checkinMessage');
         const cid = document.getElementById('courseSelectCheckin').value;
-        // ★修正: hidden inputから値を取得
         const koma = document.getElementById('currentKomaId').value;
         
         msg.style.display = 'block';
@@ -344,6 +348,8 @@ function setupEvents(sid) {
 
     document.getElementById('chatTeacherSelect').onchange = loadChatHistory;
     document.getElementById('studentScheduleMonth').onchange = loadMySchedule;
+    document.getElementById('recordCalendarMonth').onchange = loadRecordCalendar; // カレンダー月変更イベント
+    document.getElementById('refreshRecordsBtn').onclick = loadRecordCalendar;    // カレンダー更新ボタン
 }
 
 async function loadStudentInfo(id) {
@@ -367,7 +373,6 @@ async function initializeDropdowns() {
             list.forEach(i => { const o = document.createElement('option'); o.value=i[k]; o.textContent=i[v]; el.appendChild(o); });
         };
         set('courseSelectCheckin', d.courses, 'course_id', 'course_name');
-        // ★修正: コマ選択プルダウンは削除されたので初期化不要
         document.getElementById('absenceDate').value = new Date().toISOString().split('T')[0];
     } catch(e) {}
 }
@@ -381,12 +386,12 @@ async function autoSelectCourse() {
         const min = now.getHours() * 60 + now.getMinutes();
         let tk = 0;
         
-        // ★修正: 新しい時間割に対応 & 自動設定
-        // 「開始5分前」から「授業終了」までを有効期間とする
-        // 1限(09:10-10:45) -> 09:05(545) 〜 10:45(645)
-        // 2限(11:00-12:30) -> 10:55(655) 〜 12:30(750)
-        // 3限(13:30-15:00) -> 13:25(805) 〜 15:00(900)
-        // 4限(15:15-16:45) -> 15:10(910) 〜 16:45(1005)
+        // ★修正: 新しい時間割 (1限:9:10-10:45, 2限:11:00-12:30, 3限:13:30-15:00, 4限:15:15-16:45)
+        // 「開始5分前」から「授業終了」まで有効
+        // 1限: 09:05(545) 〜 10:45(645)
+        // 2限: 10:55(655) 〜 12:30(750)
+        // 3限: 13:25(805) 〜 15:00(900)
+        // 4限: 15:10(910) 〜 16:45(1005)
         
         if (min >= 545 && min < 645) tk = 1;
         else if (min >= 655 && min < 750) tk = 2;
@@ -400,7 +405,6 @@ async function autoSelectCourse() {
         if (tk > 0) {
             const item = d.schedule.find(s => s.koma === tk);
             
-            // 画面表示更新
             display.value = tk + '限';
             hidden.value = tk;
             
@@ -410,11 +414,9 @@ async function autoSelectCourse() {
                 document.getElementById('checkInButton').disabled = false;
             } else {
                 info.textContent = `⚠️ ${tk}限 授業なし`;
-                // 授業がなくても打刻させるならdisabled不要だが、基本は無効化
                 document.getElementById('checkInButton').disabled = true;
             }
         } else {
-            // 時間外
             display.value = '-';
             hidden.value = '';
             info.textContent = "⚠️ 現在は打刻時間外です";
@@ -447,15 +449,67 @@ async function loadMySchedule() {
     con.innerHTML = h+'</div>';
 }
 
-async function loadRecords() {
+// ★追加: 出席記録カレンダー表示ロジック
+async function loadRecordCalendar() {
     const sid = sessionStorage.getItem('user_id');
-    const res = await fetch(`${API_BASE_URL}/student_records?student_id=${sid}`);
-    const d = await res.json();
-    const tb = document.querySelector('#attendanceTable tbody');
-    tb.innerHTML = '';
-    d.records.forEach(r => {
-        tb.innerHTML += `<tr><td>${r.attendance_date}</td><td>${r.koma}</td><td>${r.course_name}</td><td>${r.attendance_status}</td><td>${r.attendance_time||'-'}</td></tr>`;
-    });
+    const val = document.getElementById('recordCalendarMonth').value;
+    if(!val) return;
+    
+    const ym = val.split('-');
+    const year = parseInt(ym[0]);
+    const month = parseInt(ym[1]);
+    
+    // 月の初日と末日を計算
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month, 0);
+    
+    // 日付文字列フォーマット (YYYY-MM-DD)
+    const format = (d) => `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
+    const s_str = format(start);
+    const e_str = format(end);
+
+    // APIからデータ取得
+    const url = `${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${s_str}&end_date=${e_str}`;
+    const res = await (await fetch(url)).json();
+    
+    // カレンダーHTML生成
+    let h = '<div class="month-calendar">';
+    ['日','月','火','水','木','金','土'].forEach(x => h += `<div class="month-day-header">${x}</div>`);
+    
+    // 月初めの空白
+    for(let i=0; i<start.getDay(); i++) h += '<div></div>';
+
+    // 日付セル生成
+    let loopDate = new Date(start);
+    while(loopDate <= end) {
+        const dt = format(loopDate);
+        const dayNum = loopDate.getDate();
+        
+        // その日のレコードを抽出
+        let b = '';
+        const todayRecs = res.records.filter(r => r.attendance_date === dt);
+        todayRecs.sort((a,b) => a.koma - b.koma);
+
+        todayRecs.forEach(r => {
+            // ステータスに応じた色クラス (common.css で定義済み)
+            let c = '';
+            if(r.status_id == 1) c = 'bg-present';
+            else if(r.status_id == 2) c = 'bg-late';
+            else if(r.status_id == 3) c = 'bg-absent';
+            else c = 'bg-late'; // その他/早退など
+
+            b += `<div class="mini-badge ${c}">${r.koma}:${r.status_text}</div>`;
+        });
+        
+        h += `<div class="month-day" style="min-height:80px;">
+                <div class="day-number">${dayNum}</div>
+                ${b}
+              </div>`;
+        
+        loopDate.setDate(loopDate.getDate() + 1);
+    }
+    
+    document.getElementById('recordCalendarContainer').innerHTML = h + '</div>';
 }
 
 async function loadTeacherList() {

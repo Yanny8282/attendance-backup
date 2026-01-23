@@ -52,7 +52,7 @@
                     <label>授業: <select id="courseSelectCheckin"></select></label>
                     <label>時限: <input type="text" id="komaDisplayCheckin" readonly style="width:60px; text-align:center; background:#eee; border:1px solid #ccc; border-radius:4px;"></label>
                     <input type="hidden" id="currentKomaId">
-                    </div>
+                </div>
                 <button id="checkInButton">出席する</button>
                 <p id="checkinMessage" style="margin-top: 15px; font-weight: bold;"></p>
             </div>
@@ -66,19 +66,12 @@
 
         <div id="records" class="tab-content">
             <h2>📜 出席記録</h2>
-            <table id="attendanceTable">
-                <thead>
-                    <tr>
-                        <th>日付</th>
-                        <th>時限</th>
-                        <th>授業名</th>
-                        <th>状態</th>
-                        <th>時間</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-        </div>
+            <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <input type="month" id="recordCalendarMonth" style="padding: 5px;">
+                <button id="refreshRecordsBtn" style="padding: 5px 10px; font-size: 0.9rem;">更新</button>
+            </div>
+            <div id="recordCalendarContainer"></div>
+            </div>
 
         <div id="absence" class="tab-content">
             <h2>📩 欠席・遅刻の連絡</h2>
