@@ -121,13 +121,13 @@ select {
 }
 
 .tab-button:hover {
-    color: #495057;
+    color: #ffffff;
     background-color: #f8f9fa;
 }
 
 .tab-button.active {
     color: #007bff;
-    border-bottom: 3px solid #007bff;
+    border-bottom: 3px solid #ffffff;
     font-weight: bold;
 }
 
