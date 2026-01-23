@@ -29,13 +29,13 @@
 <nav class="side-nav" id="sideNav">
     <div class="nav-header">メニュー</div>
     <div class="nav-links">
-        <button class="tab-button active" data-tab="schedule-view">ホーム</button>
-        <button class="tab-button" data-tab="checkin">出席打刻</button>
-        <button class="tab-button" data-tab="records">出席記録</button>
-        <button class="tab-button" data-tab="absence">欠席届</button>
-        <button class="tab-button" data-tab="chat">連絡</button>
-        <button class="tab-button" data-tab="register-face">顔登録</button>
-        <button id="logoutButton" style="background-color: #ff6c6c;">ログアウト</button>
+        <button class="tab-button active" data-tab="schedule-view">📅 ホーム</button>
+        <button class="tab-button" data-tab="checkin">📸 出席打刻</button>
+        <button class="tab-button" data-tab="records">📜 出席記録</button>
+        <button class="tab-button" data-tab="absence">📩 欠席届</button>
+        <button class="tab-button" data-tab="chat">💬 連絡</button>
+        <button class="tab-button" data-tab="register-face">👤 顔登録</button>
+        <button id="logoutButton" style="background-color: #666;">ログアウト</button>
     </div>
 </nav>
 <div class="nav-overlay" id="navOverlay"></div>
@@ -49,10 +49,12 @@
                     <video id="videoCheckin" autoplay playsinline></video>
                 </div>
                 <div class="control-group">
-                    <label>授業: <select id="courseSelectCheckin"></select></label>
+                    <label>授業: <input type="text" id="courseDisplayCheckin" readonly style="width:100%; text-align:center; background:#eee; border:1px solid #ccc; border-radius:4px; font-weight:bold;"></label>
+                    <input type="hidden" id="currentCourseId">
+                    
                     <label>時限: <input type="text" id="komaDisplayCheckin" readonly style="width:60px; text-align:center; background:#eee; border:1px solid #ccc; border-radius:4px;"></label>
                     <input type="hidden" id="currentKomaId">
-                </div>
+                    </div>
                 <button id="checkInButton">出席する</button>
                 <p id="checkinMessage" style="margin-top: 15px; font-weight: bold;"></p>
             </div>
@@ -71,7 +73,7 @@
                 <button id="refreshRecordsBtn" style="padding: 5px 10px; font-size: 0.9rem;">更新</button>
             </div>
             <div id="recordCalendarContainer"></div>
-            </div>
+        </div>
 
         <div id="absence" class="tab-content">
             <h2>📩 欠席・遅刻の連絡</h2>

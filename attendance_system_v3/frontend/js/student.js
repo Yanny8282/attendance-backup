@@ -43,7 +43,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const now = new Date();
     const currentMonthStr = `${now.getFullYear()}-${('0'+(now.getMonth()+1)).slice(-2)}`;
     document.getElementById('studentScheduleMonth').value = currentMonthStr;
-    document.getElementById('recordCalendarMonth').value = currentMonthStr;
+    
+    // カレンダー用月選択の初期化（要素が存在する場合のみ）
+    const calMonthInput = document.getElementById('recordCalendarMonth');
+    if(calMonthInput) calMonthInput.value = currentMonthStr;
 
     loadMySchedule();
     // loadRecordCalendar(); // タブ切り替え時に呼ぶのでここでは呼ばなくてもOK
@@ -167,14 +170,16 @@ function setupEvents(sid) {
     document.getElementById('checkInButton').onclick = async () => {
         const btn = document.getElementById('checkInButton');
         const msg = document.getElementById('checkinMessage');
-        const cid = document.getElementById('courseSelectCheckin').value;
+        
+        // ★修正: hidden inputから値を取得 (授業もコマも)
+        const cid = document.getElementById('currentCourseId').value;
         const koma = document.getElementById('currentKomaId').value;
         
         msg.style.display = 'block';
         btn.disabled = true;
 
         if (!cid) {
-            msg.textContent = "⚠️ 授業が設定されていません";
+            msg.textContent = "⚠️ 現在の時間は授業が設定されていません";
             btn.disabled = false;
             return;
         }
@@ -322,7 +327,6 @@ function setupEvents(sid) {
     // ▼▼▼ チャット送信ボタン (連打防止 & 空白対策) ▼▼▼
     document.getElementById('sendChatButton').onclick = async () => {
         const btn = document.getElementById('sendChatButton');
-        // ★修正: .trim() を追加して空白のみを無効化
         const txt = document.getElementById('chatInput').value.trim();
         const tid = document.getElementById('chatTeacherSelect').value;
         
@@ -344,7 +348,6 @@ function setupEvents(sid) {
             btn.disabled = false;
         }
     };
-    // ▲▲▲ 修正ここまで ▲▲▲
 
     document.getElementById('chatTeacherSelect').onchange = loadChatHistory;
     document.getElementById('studentScheduleMonth').onchange = loadMySchedule;
@@ -365,14 +368,7 @@ async function loadStudentInfo(id) {
 
 async function initializeDropdowns() {
     try {
-        const res = await fetch(`${API_BASE_URL}/get_course_koma`);
-        const d = await res.json();
-        const set = (id, list, k, v) => {
-            const el = document.getElementById(id); if(!el) return;
-            el.innerHTML = '';
-            list.forEach(i => { const o = document.createElement('option'); o.value=i[k]; o.textContent=i[v]; el.appendChild(o); });
-        };
-        set('courseSelectCheckin', d.courses, 'course_id', 'course_name');
+        // ★修正: 授業のプルダウン生成は廃止したので削除
         document.getElementById('absenceDate').value = new Date().toISOString().split('T')[0];
     } catch(e) {}
 }
@@ -386,39 +382,49 @@ async function autoSelectCourse() {
         const min = now.getHours() * 60 + now.getMinutes();
         let tk = 0;
         
-        // ★修正: 新しい時間割 (1限:9:10-10:45, 2限:11:00-12:30, 3限:13:30-15:00, 4限:15:15-16:45)
-        // 「開始5分前」から「授業終了」まで有効
-        // 1限: 09:05(545) 〜 10:45(645)
-        // 2限: 10:55(655) 〜 12:30(750)
-        // 3限: 13:25(805) 〜 15:00(900)
-        // 4限: 15:10(910) 〜 16:45(1005)
+        // 時間割判定 (1限:9:10, 2限:11:00, 3限:13:30, 4限:15:15)
+        // 開始5分前から次の授業開始前まで有効
         
-        if (min >= 545 && min < 645) tk = 1;
-        else if (min >= 655 && min < 750) tk = 2;
-        else if (min >= 805 && min < 900) tk = 3;
-        else if (min >= 910 && min < 1005) tk = 4;
+        if (min >= 545 && min < 645) tk = 1;      // 09:05 〜 10:45
+        else if (min >= 655 && min < 750) tk = 2; // 10:55 〜 12:30
+        else if (min >= 805 && min < 900) tk = 3; // 13:25 〜 15:00
+        else if (min >= 910 && min < 1005) tk = 4; // 15:10 〜 16:45
         
         const info = document.getElementById('autoSelectInfo');
-        const display = document.getElementById('komaDisplayCheckin');
-        const hidden = document.getElementById('currentKomaId');
+        const displayKoma = document.getElementById('komaDisplayCheckin');
+        const hiddenKoma = document.getElementById('currentKomaId');
+        
+        // ★追加: 授業名表示用
+        const displayCourse = document.getElementById('courseDisplayCheckin');
+        const hiddenCourse = document.getElementById('currentCourseId');
         
         if (tk > 0) {
             const item = d.schedule.find(s => s.koma === tk);
             
-            display.value = tk + '限';
-            hidden.value = tk;
+            displayKoma.value = tk + '限';
+            hiddenKoma.value = tk;
             
             if (item) {
-                document.getElementById('courseSelectCheckin').value = item.course_id;
-                info.textContent = `📅 自動選択: ${tk}限 ${item.course_name}`;
+                // ★修正: 授業IDと授業名をセット
+                hiddenCourse.value = item.course_id;
+                displayCourse.value = item.course_name;
+                
+                info.textContent = `📅 現在: ${tk}限 ${item.course_name}`;
                 document.getElementById('checkInButton').disabled = false;
             } else {
+                hiddenCourse.value = '';
+                displayCourse.value = '(授業なし)';
+                
                 info.textContent = `⚠️ ${tk}限 授業なし`;
                 document.getElementById('checkInButton').disabled = true;
             }
         } else {
-            display.value = '-';
-            hidden.value = '';
+            // 時間外
+            displayKoma.value = '-';
+            hiddenKoma.value = '';
+            displayCourse.value = '-';
+            hiddenCourse.value = '';
+            
             info.textContent = "⚠️ 現在は打刻時間外です";
             document.getElementById('checkInButton').disabled = true;
         }
