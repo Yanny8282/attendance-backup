@@ -15,7 +15,9 @@ from config import API_BASE_URL, FACE_MATCH_THRESHOLD, SCHOOL_LOCATION, ALLOWED_
 import os
 import traceback
 
-# フォルダ設定
+# ==========================================
+# ▼ フォルダ位置の設定
+# ==========================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, '..', 'frontend'))
 
@@ -27,20 +29,40 @@ print("="*40 + "\n")
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
 CORS(app)
 
-# Basic認証設定
-app.config['BASIC_AUTH_USERNAME'] = 'admin'
-app.config['BASIC_AUTH_PASSWORD'] = 'sotsuken2026'
+# ==========================================
+# ▼ Basic認証の設定 (管理者用)
+# ==========================================
+app.config['BASIC_AUTH_USERNAME'] = 'admin'        # ユーザー名
+app.config['BASIC_AUTH_PASSWORD'] = 'sotsuken2026' # パスワード
 app.config['BASIC_AUTH_FORCE'] = True
 basic_auth = BasicAuth(app)
 
-STATUS_NAMES = {1: "出席", 2: "遅刻", 3: "欠席", 4: "早退"}
-PERIOD_START_TIMES = {1: "09:10", 2: "11:00", 3: "13:30", 4: "15:15"}
+# ==========================================
+# ▼ 定数・設定
+# ==========================================
+STATUS_NAMES = {
+    1: "出席",
+    2: "遅刻",
+    3: "欠席",
+    4: "早退"
+}
 
+# 授業開始時間定義
+PERIOD_START_TIMES = { 
+    1: "09:10", 
+    2: "11:00", 
+    3: "13:30", 
+    4: "15:15" 
+}
+
+# ==========================================
+# ▼ ヘルパー関数
+# ==========================================
 @app.route('/')
 def index():
     return redirect('/html/index.html')
 
-# メール送信
+# メール送信関数
 def send_email(to_email, subject, body):
     if not to_email or 'xxxx' in EMAIL_CONFIG['password']:
         print(f"[Mail Mock] To:{to_email}\nSubject:{subject}\nBody:{body}\n----------------")
@@ -51,16 +73,18 @@ def send_email(to_email, subject, body):
         msg['From'] = EMAIL_CONFIG['sender_email']
         msg['To'] = to_email
         msg['Date'] = formatdate()
+        
         smtp = smtplib.SMTP_SSL(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port'])
         smtp.login(EMAIL_CONFIG['sender_email'], EMAIL_CONFIG['password'])
         smtp.send_message(msg)
         smtp.close()
+        print(f"Mail sent to {to_email}")
     except Exception as e:
         print(f"Mail Error: {e}")
 
-# 距離計算
+# 緯度経度からの距離計算
 def calc_geo_distance(lat1, lon1, lat2, lon2):
-    R = 6371000
+    R = 6371000 
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -68,24 +92,51 @@ def calc_geo_distance(lat1, lon1, lat2, lon2):
     a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlam/2)**2
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
+# 顔特徴量の距離計算
 def calc_face_distance(vec1, vec2):
     return np.linalg.norm(np.array(vec1) - np.array(vec2))
 
+# ★修正: 出席率計算ロジック (遅刻・早退は2/3点)
 def calculate_attendance_rate(student_id):
     s_info = execute_query("SELECT class_id, student_name, email FROM students WHERE student_id=%s", (student_id,), fetch=True)
-    if not s_info or not s_info[0]['class_id']: return 0, 0, {}, None
+    if not s_info or not s_info[0]['class_id']:
+        return 0, 0, {}, None
+
     class_id = s_info[0]['class_id']
     today = datetime.date.today().isoformat()
+
+    # 分母：今日までに実施された授業総数
     sch_res = execute_query("SELECT COUNT(*) as total FROM class_schedule WHERE class_id=%s AND schedule_date <= %s", (class_id, today), fetch=True)
     total_classes = sch_res[0]['total'] if sch_res else 0
-    stats_res = execute_query("SELECT status_id, COUNT(*) as cnt FROM attendance_records WHERE student_id=%s AND attendance_date <= %s GROUP BY status_id", (student_id, today), fetch=True)
+
+    # 分子：各ステータスの回数
+    stats_res = execute_query("""
+        SELECT status_id, COUNT(*) as cnt 
+        FROM attendance_records 
+        WHERE student_id=%s AND attendance_date <= %s 
+        GROUP BY status_id
+    """, (student_id, today), fetch=True)
+    
     counts = {1:0, 2:0, 3:0, 4:0}
-    for r in stats_res: counts[r['status_id']] = r['cnt']
-    attended = counts[1] + counts[2] + counts[4]
-    rate = round((attended / total_classes) * 100, 1) if total_classes > 0 else 0
+    for r in stats_res:
+        counts[r['status_id']] = r['cnt']
+
+    # ★計算ロジック変更
+    # 出席(1): 1点
+    # 遅刻(2), 早退(4): 2/3点 (約0.66点)
+    # 欠席(3): 0点
+    # ※遅刻3回で (2/3 * 3) = 2点。本来3点満点なので1点(1回分)失う計算。
+    attended_points = (counts[1] * 1.0) + ((counts[2] + counts[4]) * (2/3))
+    
+    rate = 0.0
+    if total_classes > 0:
+        rate = round((attended_points / total_classes) * 100, 1)
+        
     return rate, total_classes, counts, s_info[0]
 
-# --- API ---
+# ==========================================
+# ▼ API ルート定義
+# ==========================================
 
 @app.route(f'{API_BASE_URL}/login', methods=['POST'])
 def login():
@@ -94,11 +145,9 @@ def login():
         u = str(d.get('id')).strip()
         p = str(d.get('password')).strip()
         
-        # ★管理者フラグ(is_admin)も取得
         teacher = execute_query("SELECT teacher_id, is_admin FROM teachers WHERE teacher_id=%s AND password=%s", (u, p), fetch=True)
         if teacher:
             unread = execute_query("SELECT COUNT(*) as c FROM chat_messages WHERE receiver_id=%s AND is_read=0", (u,), fetch=True)[0]['c']
-            # 管理者なら role='admin', それ以外は 'teacher'
             role = 'admin' if teacher[0].get('is_admin') == 1 else 'teacher'
             return jsonify({'success': True, 'role': role, 'user_id': u, 'unread_count': unread})
 
@@ -135,7 +184,6 @@ def get_course_koma():
     komas = [{'koma_id': i, 'koma_name': f'{i}限'} for i in range(1,5)]
     return jsonify({'success': True, 'courses': c, 'komas': komas})
 
-# ▼▼▼ 変更: 顔登録 (期限チェック追加) ▼▼▼
 @app.route(f'{API_BASE_URL}/register_face', methods=['POST'])
 def register_face():
     try:
@@ -146,7 +194,6 @@ def register_face():
         auth = execute_query("SELECT registration_expiry FROM student_auth WHERE student_id=%s", (sid,), fetch=True)
         if not auth: return jsonify({'success': False, 'message': '生徒不明'}), 400
         
-        # 期限チェック
         expiry = auth[0].get('registration_expiry')
         if not expiry or expiry < datetime.datetime.now():
              return jsonify({'success': False, 'message': '登録の許可期限が切れています。先生に許可をもらってください。'}), 403
@@ -157,7 +204,6 @@ def register_face():
         traceback.print_exc()
         return jsonify({'success': False, 'message': str(e)}), 500
 
-# ▼▼▼ 追加: 顔登録許可 (5分間) ▼▼▼
 @app.route(f'{API_BASE_URL}/allow_face_registration', methods=['POST'])
 def allow_face_registration():
     try:
@@ -170,7 +216,6 @@ def allow_face_registration():
         traceback.print_exc()
         return jsonify({'success': False, 'message': str(e)}), 500
 
-# ▼▼▼ 追加: パスワードリセット ▼▼▼
 @app.route(f'{API_BASE_URL}/reset_student_password', methods=['POST'])
 def reset_student_password():
     try:
@@ -189,7 +234,7 @@ def check_in():
         d = request.json
         sid, desc, cid, koma, lat, lng = d.get('student_id'), d.get('descriptor'), d.get('course_id'), d.get('koma'), d.get('lat'), d.get('lng')
 
-        if not sid or not desc: return jsonify({'success': False, 'message': 'データ不足'}), 400
+        if not sid or not desc: return jsonify({'success': False, 'message': '認証データ不足'}), 400
         if not cid or not koma: return jsonify({'success': False, 'message': '授業選択不足'}), 400
         if lat is None: return jsonify({'success': False, 'message': '位置情報不足'}), 400
 
@@ -226,7 +271,7 @@ def check_in():
         try:
             rate, _, _, s_info = calculate_attendance_rate(sid)
             if rate < 80.0 and s_info and s_info['email']:
-                send_email(s_info['email'], "【警告】出席率低下", f"{s_info['student_name']} さん\n出席率が{rate}%です。")
+                send_email(s_info['email'], "【警告】出席率低下", f"{s_info['student_name']} さん\n出席率が{rate}%です。\n80%を下回りました。")
         except: pass
 
         return jsonify({'success': True, 'message': '完了しました'})
@@ -328,10 +373,17 @@ def get_student_list():
     for r in res: r['birthday'] = r['birthday'].isoformat() if r['birthday'] else ''
     return jsonify({'success': True, 'students': res})
 
+# CRUD系 (権限チェック付き)
+def is_admin_request(req_data):
+    rid = req_data.get('requester_id')
+    if not rid: return False
+    res = execute_query("SELECT is_admin FROM teachers WHERE teacher_id=%s", (rid,), fetch=True)
+    return True if res and res[0].get('is_admin') == 1 else False
+
 @app.route(f'{API_BASE_URL}/add_student', methods=['POST'])
 def add_student():
     d = request.json
-    if execute_query("INSERT INTO students (student_id, student_name, class_id, gender, birthday, email) VALUES (%s,%s,%s,%s,%s,%s)", (d['student_id'], d['student_name'], d['class_id'], d['gender'], d['birthday'], d['email'])):
+    if execute_query("INSERT INTO students (student_id, student_name, class_id, gender, birthday, email) VALUES (%s,%s,%s,%s,%s,%s)", (d['student_id'], d['student_name'], d.get('class_id'), d.get('gender'), d.get('birthday'), d.get('email'))):
         execute_query("INSERT INTO student_auth (student_id, password) VALUES (%s,%s)", (d['student_id'], d['password']))
         return jsonify({'success': True})
     return jsonify({'success': False})
@@ -355,19 +407,10 @@ def get_teacher_list():
     for r in res: r['assigned_classes'] = [int(x) for x in str(r['assigned_classes']).split(',')] if r['assigned_classes'] else []
     return jsonify({'success': True, 'teachers': res})
 
-# ▼▼▼ 管理者チェック関数 ▼▼▼
-def is_admin_request(req_data):
-    rid = req_data.get('requester_id')
-    if not rid: return False
-    res = execute_query("SELECT is_admin FROM teachers WHERE teacher_id=%s", (rid,), fetch=True)
-    return True if res and res[0].get('is_admin') == 1 else False
-
 @app.route(f'{API_BASE_URL}/add_teacher', methods=['POST'])
 def add_teacher():
     d = request.json
-    # 管理者チェック
-    if not is_admin_request(d): return jsonify({'success': False, 'message': '権限がありません'}), 403
-
+    if not is_admin_request(d): return jsonify({'success': False, 'message': '権限なし'}), 403
     if execute_query("INSERT INTO teachers (teacher_id, password, teacher_name, email) VALUES (%s,%s,%s,%s)", (d['teacher_id'], d['password'], d['teacher_name'], d['email'])):
         for c in d.get('assigned_classes', []): execute_query("INSERT INTO teacher_assignments (teacher_id, class_id) VALUES (%s,%s)", (d['teacher_id'], c))
         return jsonify({'success': True})
@@ -376,9 +419,7 @@ def add_teacher():
 @app.route(f'{API_BASE_URL}/update_teacher', methods=['POST'])
 def update_teacher():
     d = request.json
-    # 管理者チェック
-    if not is_admin_request(d): return jsonify({'success': False, 'message': '権限がありません'}), 403
-
+    if not is_admin_request(d): return jsonify({'success': False, 'message': '権限なし'}), 403
     execute_query("UPDATE teachers SET teacher_name=%s, email=%s WHERE teacher_id=%s", (d['teacher_name'], d['email'], d['teacher_id']))
     if d.get('password'): execute_query("UPDATE teachers SET password=%s WHERE teacher_id=%s", (d['password'], d['teacher_id']))
     execute_query("DELETE FROM teacher_assignments WHERE teacher_id=%s", (d['teacher_id'],))
@@ -388,8 +429,7 @@ def update_teacher():
 @app.route(f'{API_BASE_URL}/delete_teacher', methods=['POST'])
 def delete_teacher():
     d = request.json
-    # 管理者チェック
-    if not is_admin_request(d): return jsonify({'success': False, 'message': '権限がありません'}), 403
+    if not is_admin_request(d): return jsonify({'success': False, 'message': '権限なし'}), 403
     return jsonify({'success': execute_query("DELETE FROM teachers WHERE teacher_id=%s", (d['teacher_id'],)) is not None})
 
 @app.route(f'{API_BASE_URL}/get_class_list')

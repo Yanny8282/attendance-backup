@@ -203,7 +203,6 @@ function setupEvents(sid) {
             if (d.success) {
                 alert("登録が完了しました！");
             } else {
-                // エラー表示を詳細に
                 alert("登録エラー: " + d.message);
             }
         } catch(e) {
@@ -316,11 +315,14 @@ function setupEvents(sid) {
         } catch(e) { console.error(e); alert("通信エラー"); }
     };
 
+    // ★修正: チャット連打防止
     document.getElementById('sendChatButton').onclick = async () => {
         const btn = document.getElementById('sendChatButton');
         const txt = document.getElementById('chatInput').value.trim();
         const tid = document.getElementById('chatTeacherSelect').value;
+        
         if(!txt || !tid) return;
+        
         btn.disabled = true;
         try {
             await fetch(`${API_BASE_URL}/chat/send`, {
@@ -329,7 +331,11 @@ function setupEvents(sid) {
             });
             document.getElementById('chatInput').value = '';
             loadChatHistory();
-        } catch(e) { console.error(e); alert("送信エラー"); } finally { btn.disabled = false; }
+        } catch(e) { 
+            console.error(e); alert("送信エラー"); 
+        } finally { 
+            btn.disabled = false; 
+        }
     };
 
     document.getElementById('chatTeacherSelect').onchange = loadChatHistory;
@@ -460,7 +466,6 @@ async function loadRecordCalendar() {
     document.getElementById('recordCalendarContainer').innerHTML = h + '</div>';
 }
 
-// ▼▼▼ 追加: 出席率グラフ取得・描画 ▼▼▼
 async function loadStudentStats() {
     const sid = sessionStorage.getItem('user_id');
     try {
@@ -491,7 +496,6 @@ async function loadStudentStats() {
         }
     } catch(e) { console.error(e); }
 }
-// ▲▲▲ ここまで ▲▲▲
 
 async function loadTeacherList() {
     const el = document.getElementById('chatTeacherSelect');
@@ -500,6 +504,8 @@ async function loadTeacherList() {
     const d = await res.json();
     el.innerHTML = '';
     d.teachers.forEach(t => {
+        // ★修正: 管理者(admin)はリストから除外
+        if (t.teacher_id === 'admin' || t.is_admin === 1) return;
         const o = document.createElement('option'); o.value=t.teacher_id; o.textContent=t.teacher_name; el.appendChild(o);
     });
     loadChatHistory();
