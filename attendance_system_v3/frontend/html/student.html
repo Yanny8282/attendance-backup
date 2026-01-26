@@ -9,6 +9,7 @@
     <title>生徒ダッシュボード</title>
     <link rel="stylesheet" href="../css/common.css">
     <link rel="stylesheet" href="../css/student_style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header>
@@ -45,9 +46,16 @@
             <h2>📸 出席打刻</h2>
             <div style="text-align: center;">
                 <p id="autoSelectInfo" style="font-weight:bold; color:#007bff; margin-bottom:10px;">--</p>
+                <div id="livenessChallengeBox" style="background:#fff3cd; color:#856404; padding:8px; border-radius:4px; margin-bottom:10px; display:none;">
+                    <strong>🤖 なりすまし防止チェック:</strong> <br>
+                    <span id="livenessInstruction" style="font-size:1.1em; font-weight:bold;"></span>
+                </div>
                 <div class="camera-box">
                     <video id="videoCheckin" autoplay playsinline></video>
                 </div>
+                
+                <p id="faceStatusMsg" style="color:orange; font-size:0.9rem; font-weight:bold;">カメラを起動中...</p>
+                
                 <div class="control-group">
                     <label>授業: <input type="text" id="courseDisplayCheckin" readonly style="width:100%; text-align:center; background:#eee; border:1px solid #ccc; border-radius:4px; font-weight:bold;"></label>
                     <input type="hidden" id="currentCourseId">
@@ -55,7 +63,7 @@
                     <label>時限: <input type="text" id="komaDisplayCheckin" readonly style="width:60px; text-align:center; background:#eee; border:1px solid #ccc; border-radius:4px;"></label>
                     <input type="hidden" id="currentKomaId">
                     </div>
-                <button id="checkInButton">出席する</button>
+                <button id="checkInButton" disabled>出席する</button>
                 <p id="checkinMessage" style="margin-top: 15px; font-weight: bold;"></p>
             </div>
         </div>
@@ -68,6 +76,16 @@
 
         <div id="records" class="tab-content">
             <h2>📜 出席記録</h2>
+            
+            <div style="background:white; padding:15px; border-radius:8px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="margin-top:0;">現在の出席率: <span id="attendanceRate" style="color:#007bff; font-size:1.5rem;">--</span>%</h3>
+                <div style="width:100%; max-width:350px; margin:0 auto;">
+                    <canvas id="attendanceChart"></canvas>
+                </div>
+                <p style="font-size:0.8rem; color:#666; text-align:center; margin-top:10px;">
+                    実施授業数: <span id="totalClasses">--</span> 回
+                </p>
+            </div>
             <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
                 <input type="month" id="recordCalendarMonth" style="padding: 5px;">
                 <button id="refreshRecordsBtn" style="padding: 5px 10px; font-size: 0.9rem;">更新</button>

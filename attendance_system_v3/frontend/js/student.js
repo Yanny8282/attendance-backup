@@ -1,13 +1,13 @@
-// ★変更: HTTPS化に伴い、相対パスに変更
 const API_BASE_URL = '/api';
 let videoStream = null;
 let myClassId = null;
 let chatInterval = null;
+let myChart = null; // グラフ用
+let checkInInterval = null; // 顔検出ループ用
+let requiredExpression = 'happy'; // なりすまし防止用: 要求する表情
 
-// ▼▼▼ 認証チェック関数 ▼▼▼
 const checkAuth = () => {
     const sid = sessionStorage.getItem('user_id');
-    // 認証情報がない、または権限が違う場合はログイン画面へ「置き換え(replace)」
     if (!sid || sessionStorage.getItem('user_role') !== 'student') { 
         location.replace('../html/index.html'); 
         return false;
@@ -15,14 +15,12 @@ const checkAuth = () => {
     return true;
 };
 
-// ▼▼▼ ページが表示されるたびに実行 (戻るボタン対策) ▼▼▼
 window.addEventListener('pageshow', (event) => {
-    // キャッシュから読み込まれた場合(persisted)も、通常表示もチェック
     checkAuth();
 });
 
 document.addEventListener('DOMContentLoaded', async () => {
-    if (!checkAuth()) return; // 読み込み時もチェック
+    if (!checkAuth()) return;
 
     const sid = sessionStorage.getItem('user_id');
     document.getElementById('studentId').textContent = sid;
@@ -39,23 +37,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadStudentInfo(sid);
     initializeDropdowns();
     
-    // 日付初期設定
     const now = new Date();
     const currentMonthStr = `${now.getFullYear()}-${('0'+(now.getMonth()+1)).slice(-2)}`;
     document.getElementById('studentScheduleMonth').value = currentMonthStr;
-    
-    // カレンダー用月選択の初期化（要素が存在する場合のみ）
     const calMonthInput = document.getElementById('recordCalendarMonth');
     if(calMonthInput) calMonthInput.value = currentMonthStr;
 
     loadMySchedule();
-    // loadRecordCalendar(); // タブ切り替え時に呼ぶのでここでは呼ばなくてもOK
     
-    // AI Models Loading...
+    // AI Models Loading
     try {
         await faceapi.nets.ssdMobilenetv1.loadFromUri('../models');
         await faceapi.nets.faceLandmark68Net.loadFromUri('../models');
         await faceapi.nets.faceRecognitionNet.loadFromUri('../models');
+        // ★追加: 表情認識モデルの読み込み
+        await faceapi.nets.faceExpressionNet.loadFromUri('../models');
         console.log("AI Models Loaded");
     } catch(e) {
         console.error("AI Model Error:", e);
@@ -63,7 +59,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// ハンバーガーメニューの開閉制御
 function setupHamburgerMenu() {
     const hamburger = document.getElementById('hamburgerMenu');
     const sideNav = document.getElementById('sideNav');
@@ -84,11 +79,9 @@ function setupTabs() {
 
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.addEventListener('click', () => {
-            // メニューを閉じる
             if(sideNav) sideNav.classList.remove('open');
             if(overlay) overlay.classList.remove('show');
 
-            // タブ切り替え
             document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
@@ -97,13 +90,20 @@ function setupTabs() {
             
             stopCamera();
             if(chatInterval) clearInterval(chatInterval);
+            if(checkInInterval) clearInterval(checkInInterval);
 
-            // 各機能の初期化
-            if(btn.dataset.tab === 'checkin') { startCamera('videoCheckin'); autoSelectCourse(); }
+            if(btn.dataset.tab === 'checkin') { 
+                startCamera('videoCheckin'); 
+                autoSelectCourse(); 
+                startLivenessCheck(); // ★追加: なりすまし防止開始
+            }
             if(btn.dataset.tab === 'register-face') { startCamera('videoRegister'); }
             if(btn.dataset.tab === 'chat') { loadTeacherList(); startChatPolling(); }
             if(btn.dataset.tab === 'schedule-view') { loadMySchedule(); }
-            if(btn.dataset.tab === 'records') { loadRecordCalendar(); } // ★修正: カレンダー読み込み
+            if(btn.dataset.tab === 'records') { 
+                loadRecordCalendar(); 
+                loadStudentStats(); // ★追加: 出席率グラフ更新
+            } 
         });
     });
 }
@@ -129,17 +129,62 @@ function stopCamera() {
 
 async function getFaceDescriptor(vidId) {
     const video = document.getElementById(vidId);
-    // モデルがロードされているか厳密にチェック
-    if (!faceapi.nets.ssdMobilenetv1.params) {
-        alert("AIモデルがまだ読み込まれていません。少し待ってから再度お試しください。");
-        return null;
-    }
+    if (!faceapi.nets.ssdMobilenetv1.params) return null;
     if (video.paused || video.ended || !video.srcObject) return null;
     
     const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
     if (!detection) return null;
     return Array.from(detection.descriptor); 
 }
+
+// ▼▼▼ なりすまし防止機能 (Liveness Check) ▼▼▼
+function startLivenessCheck() {
+    const video = document.getElementById('videoCheckin');
+    const msgEl = document.getElementById('faceStatusMsg');
+    const btn = document.getElementById('checkInButton');
+    const challengeBox = document.getElementById('livenessChallengeBox');
+    const instruction = document.getElementById('livenessInstruction');
+
+    // ランダムに指示を決定 (笑顔 or 素顔)
+    const isSmile = Math.random() > 0.5;
+    requiredExpression = isSmile ? 'happy' : 'neutral';
+    
+    challengeBox.style.display = 'block';
+    instruction.textContent = isSmile ? "😊 カメラに向かって「笑顔」を見せてください" : "😐 カメラに向かって「真顔」でいてください";
+
+    if(checkInInterval) clearInterval(checkInInterval);
+
+    checkInInterval = setInterval(async () => {
+        if (!faceapi.nets.faceExpressionNet.params || video.paused || video.ended) return;
+
+        // 表情認識も行う
+        const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceExpressions();
+        
+        if (detection) {
+            const expr = detection.expressions;
+            // 指定された表情のスコアが0.7以上かチェック
+            if (expr[requiredExpression] > 0.7) {
+                msgEl.textContent = "✅ 表情を確認しました！出席ボタンを押せます";
+                msgEl.style.color = "green";
+                // 授業判定がOKならボタン有効化
+                if (!document.getElementById('currentKomaId').value) {
+                    btn.disabled = true; // 授業時間外なら無効のまま
+                } else {
+                    btn.disabled = false;
+                }
+            } else {
+                msgEl.textContent = "🔍 表情を認識中...指示に従ってください";
+                msgEl.style.color = "orange";
+                btn.disabled = true;
+            }
+        } else {
+            msgEl.textContent = "❌ 顔が見つかりません";
+            msgEl.style.color = "red";
+            btn.disabled = true;
+        }
+    }, 500);
+}
+// ▲▲▲ ここまで ▲▲▲
 
 function setupEvents(sid) {
     document.getElementById('logoutButton').onclick = () => {
@@ -166,30 +211,18 @@ function setupEvents(sid) {
         }
     };
 
-    // 出席打刻処理 (重複チェックを最初に実行)
     document.getElementById('checkInButton').onclick = async () => {
         const btn = document.getElementById('checkInButton');
         const msg = document.getElementById('checkinMessage');
-        
-        // ★修正: hidden inputから値を取得 (授業もコマも)
         const cid = document.getElementById('currentCourseId').value;
         const koma = document.getElementById('currentKomaId').value;
         
         msg.style.display = 'block';
         btn.disabled = true;
 
-        if (!cid) {
-            msg.textContent = "⚠️ 現在の時間は授業が設定されていません";
-            btn.disabled = false;
-            return;
-        }
-        if (!koma) {
-            msg.textContent = "⚠️ 現在は打刻可能な時間帯ではありません";
-            btn.disabled = false;
-            return;
-        }
+        if (!cid) { msg.textContent = "⚠️ 現在の時間は授業が設定されていません"; btn.disabled = false; return; }
+        if (!koma) { msg.textContent = "⚠️ 現在は打刻可能な時間帯ではありません"; btn.disabled = false; return; }
 
-        // --- 重複チェック ---
         msg.textContent = "登録状況を確認中...";
         try {
             const today = new Date().toISOString().split('T')[0];
@@ -201,28 +234,19 @@ function setupEvents(sid) {
                 if (duplicate) {
                     const statusText = duplicate.status_text || '登録済';
                     const courseName = duplicate.course_name || '不明な授業';
-                    msg.textContent = `⚠️ このコマは既に「${statusText} (${courseName})」として登録されています`;
+                    msg.textContent = `⚠️ このコマは既に「${statusText}」です`;
                     alert(`このコマ(${koma}限)は既に登録済みです。\n(${courseName} で ${statusText})`);
                     btn.disabled = false;
                     return; 
                 }
             }
-        } catch(e) {
-            console.error("Duplicate check error:", e);
-        }
+        } catch(e) { console.error("Duplicate check error:", e); }
 
-        // --- 位置情報取得 ---
         msg.textContent = "位置情報取得中..."; 
-
-        if (!navigator.geolocation) {
-            msg.textContent = "⚠️ この端末では位置情報が使えません";
-            btn.disabled = false;
-            return;
-        }
+        if (!navigator.geolocation) { msg.textContent = "⚠️ この端末では位置情報が使えません"; btn.disabled = false; return; }
 
         navigator.geolocation.getCurrentPosition(async (pos) => {
             try {
-                // --- 顔認証 ---
                 msg.textContent = "顔解析中...";
                 const descriptor = await getFaceDescriptor('videoCheckin');
                 if (!descriptor) { 
@@ -232,7 +256,6 @@ function setupEvents(sid) {
                     return; 
                 }
 
-                // --- 登録送信 ---
                 const res = await fetch(`${API_BASE_URL}/check_in`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -245,12 +268,13 @@ function setupEvents(sid) {
                 
                 if (ret.success) {
                     msg.textContent = `✅ ${ret.message}`;
+                    // 打刻成功後、即座にグラフを更新して警告メール判定などを反映
+                    loadStudentStats();
                 } else {
                     msg.textContent = `❌ ${ret.message}`;
                 }
             } catch(e) { 
-                console.error(e);
-                msg.textContent = "通信または処理エラー"; 
+                console.error(e); msg.textContent = "通信または処理エラー"; 
             } finally {
                 btn.disabled = false;
             }
@@ -259,14 +283,8 @@ function setupEvents(sid) {
             let errMsg = "GPSエラー";
             if (err.code === 1) errMsg = "⚠️ 位置情報の許可が必要です";
             else if (err.code === 2) errMsg = "⚠️ 位置情報が取得できません";
-            else if (err.code === 3) errMsg = "⚠️ タイムアウトしました";
-            msg.textContent = errMsg; 
-            btn.disabled = false; 
-        }, {
-            enableHighAccuracy: false,
-            timeout: 30000,
-            maximumAge: 0
-        });
+            msg.textContent = errMsg; btn.disabled = false; 
+        }, { enableHighAccuracy: false, timeout: 30000, maximumAge: 0 });
     };
 
     document.getElementById('submitAbsenceButton').onclick = async () => {
@@ -274,37 +292,11 @@ function setupEvents(sid) {
         const reason = document.getElementById('absenceReason').value;
         const selects = document.querySelectorAll('.absence-status-select');
         const reports = [];
-        selects.forEach(sel => {
-            if (sel.value) { 
-                reports.push({ koma: parseInt(sel.dataset.koma), status: parseInt(sel.value) });
-            }
-        });
+        selects.forEach(sel => { if (sel.value) reports.push({ koma: parseInt(sel.dataset.koma), status: parseInt(sel.value) }); });
         
         if(!date) { alert("日付を選択してください"); return; }
         if(reports.length === 0) { alert("連絡するコマの状態を1つ以上選択してください"); return; }
         if(!reason) { alert("理由を入力してください"); return; }
-
-        try {
-            const checkRes = await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${date}&end_date=${date}`);
-            const checkData = await checkRes.json();
-            
-            if (checkData.success) {
-                const duplicates = [];
-                reports.forEach(r => {
-                    const exists = checkData.records.find(existing => existing.koma === r.koma);
-                    if (exists) {
-                        duplicates.push(`${r.koma}限`);
-                    }
-                });
-
-                if (duplicates.length > 0) {
-                    alert(`以下のコマは既に登録済みのため送信できません:\n${duplicates.join(', ')}\n\n日付を確認するか、教員へ連絡してください。`);
-                    return; 
-                }
-            }
-        } catch(e) {
-            console.error("Duplicate check error", e);
-        }
 
         try {
             const res = await fetch(`${API_BASE_URL}/report_absence`, {
@@ -319,21 +311,15 @@ function setupEvents(sid) {
             } else {
                 alert("送信失敗: " + ret.message);
             }
-        } catch(e) {
-            console.error(e); alert("通信エラー");
-        }
+        } catch(e) { console.error(e); alert("通信エラー"); }
     };
 
-    // ▼▼▼ チャット送信ボタン (連打防止 & 空白対策) ▼▼▼
     document.getElementById('sendChatButton').onclick = async () => {
         const btn = document.getElementById('sendChatButton');
         const txt = document.getElementById('chatInput').value.trim();
         const tid = document.getElementById('chatTeacherSelect').value;
-        
         if(!txt || !tid) return;
-
         btn.disabled = true;
-
         try {
             await fetch(`${API_BASE_URL}/chat/send`, {
                 method: 'POST', headers: {'Content-Type':'application/json'},
@@ -341,18 +327,13 @@ function setupEvents(sid) {
             });
             document.getElementById('chatInput').value = '';
             loadChatHistory();
-        } catch(e) {
-            console.error(e);
-            alert("送信エラー");
-        } finally {
-            btn.disabled = false;
-        }
+        } catch(e) { console.error(e); alert("送信エラー"); } finally { btn.disabled = false; }
     };
 
     document.getElementById('chatTeacherSelect').onchange = loadChatHistory;
     document.getElementById('studentScheduleMonth').onchange = loadMySchedule;
-    document.getElementById('recordCalendarMonth').onchange = loadRecordCalendar; // カレンダー月変更イベント
-    document.getElementById('refreshRecordsBtn').onclick = loadRecordCalendar;    // カレンダー更新ボタン
+    document.getElementById('recordCalendarMonth').onchange = loadRecordCalendar;
+    document.getElementById('refreshRecordsBtn').onclick = loadRecordCalendar;
 }
 
 async function loadStudentInfo(id) {
@@ -368,7 +349,6 @@ async function loadStudentInfo(id) {
 
 async function initializeDropdowns() {
     try {
-        // ★修正: 授業のプルダウン生成は廃止したので削除
         document.getElementById('absenceDate').value = new Date().toISOString().split('T')[0];
     } catch(e) {}
 }
@@ -382,49 +362,31 @@ async function autoSelectCourse() {
         const min = now.getHours() * 60 + now.getMinutes();
         let tk = 0;
         
-        // 時間割判定 (1限:9:10, 2限:11:00, 3限:13:30, 4限:15:15)
-        // 開始5分前から次の授業開始前まで有効
-        
-        if (min >= 545 && min < 645) tk = 1;      // 09:05 〜 10:45
-        else if (min >= 655 && min < 750) tk = 2; // 10:55 〜 12:30
-        else if (min >= 805 && min < 900) tk = 3; // 13:25 〜 15:00
-        else if (min >= 910 && min < 1005) tk = 4; // 15:10 〜 16:45
+        if (min >= 545 && min < 645) tk = 1;
+        else if (min >= 655 && min < 750) tk = 2;
+        else if (min >= 805 && min < 900) tk = 3;
+        else if (min >= 910 && min < 1005) tk = 4;
         
         const info = document.getElementById('autoSelectInfo');
         const displayKoma = document.getElementById('komaDisplayCheckin');
         const hiddenKoma = document.getElementById('currentKomaId');
-        
-        // ★追加: 授業名表示用
         const displayCourse = document.getElementById('courseDisplayCheckin');
         const hiddenCourse = document.getElementById('currentCourseId');
         
         if (tk > 0) {
             const item = d.schedule.find(s => s.koma === tk);
-            
-            displayKoma.value = tk + '限';
-            hiddenKoma.value = tk;
-            
+            displayKoma.value = tk + '限'; hiddenKoma.value = tk;
             if (item) {
-                // ★修正: 授業IDと授業名をセット
-                hiddenCourse.value = item.course_id;
-                displayCourse.value = item.course_name;
-                
+                hiddenCourse.value = item.course_id; displayCourse.value = item.course_name;
                 info.textContent = `📅 現在: ${tk}限 ${item.course_name}`;
-                document.getElementById('checkInButton').disabled = false;
+                // Livenessチェックが通るまではボタン無効のまま
             } else {
-                hiddenCourse.value = '';
-                displayCourse.value = '(授業なし)';
-                
+                hiddenCourse.value = ''; displayCourse.value = '(授業なし)';
                 info.textContent = `⚠️ ${tk}限 授業なし`;
                 document.getElementById('checkInButton').disabled = true;
             }
         } else {
-            // 時間外
-            displayKoma.value = '-';
-            hiddenKoma.value = '';
-            displayCourse.value = '-';
-            hiddenCourse.value = '';
-            
+            displayKoma.value = '-'; hiddenKoma.value = ''; displayCourse.value = '-'; hiddenCourse.value = '';
             info.textContent = "⚠️ 現在は打刻時間外です";
             document.getElementById('checkInButton').disabled = true;
         }
@@ -455,7 +417,6 @@ async function loadMySchedule() {
     con.innerHTML = h+'</div>';
 }
 
-// ★追加: 出席記録カレンダー表示ロジック
 async function loadRecordCalendar() {
     const sid = sessionStorage.getItem('user_id');
     const val = document.getElementById('recordCalendarMonth').value;
@@ -464,59 +425,72 @@ async function loadRecordCalendar() {
     const ym = val.split('-');
     const year = parseInt(ym[0]);
     const month = parseInt(ym[1]);
-    
-    // 月の初日と末日を計算
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 0);
-    
-    // 日付文字列フォーマット (YYYY-MM-DD)
     const format = (d) => `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`;
     const s_str = format(start);
     const e_str = format(end);
 
-    // APIからデータ取得
     const url = `${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${s_str}&end_date=${e_str}`;
     const res = await (await fetch(url)).json();
     
-    // カレンダーHTML生成
     let h = '<div class="month-calendar">';
     ['日','月','火','水','木','金','土'].forEach(x => h += `<div class="month-day-header">${x}</div>`);
-    
-    // 月初めの空白
     for(let i=0; i<start.getDay(); i++) h += '<div></div>';
 
-    // 日付セル生成
     let loopDate = new Date(start);
     while(loopDate <= end) {
         const dt = format(loopDate);
         const dayNum = loopDate.getDate();
-        
-        // その日のレコードを抽出
         let b = '';
         const todayRecs = res.records.filter(r => r.attendance_date === dt);
         todayRecs.sort((a,b) => a.koma - b.koma);
-
         todayRecs.forEach(r => {
-            // ステータスに応じた色クラス (common.css で定義済み)
             let c = '';
             if(r.status_id == 1) c = 'bg-present';
             else if(r.status_id == 2) c = 'bg-late';
             else if(r.status_id == 3) c = 'bg-absent';
-            else c = 'bg-late'; // その他/早退など
-
+            else c = 'bg-late'; 
             b += `<div class="mini-badge ${c}">${r.koma}:${r.status_text}</div>`;
         });
-        
-        h += `<div class="month-day" style="min-height:80px;">
-                <div class="day-number">${dayNum}</div>
-                ${b}
-              </div>`;
-        
+        h += `<div class="month-day" style="min-height:80px;"><div class="day-number">${dayNum}</div>${b}</div>`;
         loopDate.setDate(loopDate.getDate() + 1);
     }
-    
     document.getElementById('recordCalendarContainer').innerHTML = h + '</div>';
 }
+
+// ▼▼▼ 追加: 出席率グラフ取得・描画 ▼▼▼
+async function loadStudentStats() {
+    const sid = sessionStorage.getItem('user_id');
+    try {
+        const res = await fetch(`${API_BASE_URL}/get_student_stats?student_id=${sid}`);
+        const d = await res.json();
+        
+        if (d.success) {
+            document.getElementById('attendanceRate').textContent = d.rate;
+            document.getElementById('totalClasses').textContent = d.total_classes;
+            
+            const ctx = document.getElementById('attendanceChart').getContext('2d');
+            if (myChart) myChart.destroy();
+
+            myChart = new Chart(ctx, {
+                type: 'doughnut', 
+                data: {
+                    labels: ['出席', '遅刻', '欠席', '早退'],
+                    datasets: [{
+                        data: [d.counts[1], d.counts[2], d.counts[3], d.counts[4]],
+                        backgroundColor: ['#28a745', '#fd7e14', '#dc3545', '#17a2b8']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+    } catch(e) { console.error(e); }
+}
+// ▲▲▲ ここまで ▲▲▲
 
 async function loadTeacherList() {
     const el = document.getElementById('chatTeacherSelect');

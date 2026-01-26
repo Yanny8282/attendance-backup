@@ -1,5 +1,5 @@
 #-*- coding:utf-8 -*-
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, request, jsonify, redirect, Response
 from flask_cors import CORS
 from flask_basicauth import BasicAuth
 from db import execute_query
@@ -96,6 +96,42 @@ def calc_geo_distance(lat1, lon1, lat2, lon2):
 def calc_face_distance(vec1, vec2):
     return np.linalg.norm(np.array(vec1) - np.array(vec2))
 
+# --- 統計計算用ヘルパー ---
+def calculate_attendance_rate(student_id):
+    # 生徒のクラスを取得
+    s_info = execute_query("SELECT class_id, student_name, email FROM students WHERE student_id=%s", (student_id,), fetch=True)
+    if not s_info or not s_info[0]['class_id']:
+        return 0, 0, {}, None # rate, total, counts, student_info
+
+    class_id = s_info[0]['class_id']
+    today = datetime.date.today().isoformat()
+
+    # 分母：今日までに実施された授業コマ数をカウント
+    sch_res = execute_query("SELECT COUNT(*) as total FROM class_schedule WHERE class_id=%s AND schedule_date <= %s", (class_id, today), fetch=True)
+    total_classes = sch_res[0]['total'] if sch_res else 0
+
+    # 分子：ステータスごとのカウント
+    stats_res = execute_query("""
+        SELECT status_id, COUNT(*) as cnt 
+        FROM attendance_records 
+        WHERE student_id=%s AND attendance_date <= %s 
+        GROUP BY status_id
+    """, (student_id, today), fetch=True)
+    
+    counts = {1:0, 2:0, 3:0, 4:0}
+    for r in stats_res:
+        counts[r['status_id']] = r['cnt']
+
+    # 出席扱い (出席+遅刻+早退) の合計
+    # ※学校の規定によりますが、ここでは遅刻・早退も「出席」としてカウントし、欠席のみ除外する計算とします
+    attended_count = counts[1] + counts[2] + counts[4]
+    
+    rate = 0.0
+    if total_classes > 0:
+        rate = round((attended_count / total_classes) * 100, 1)
+        
+    return rate, total_classes, counts, s_info[0]
+
 # --- API ---
 @app.route(f'{API_BASE_URL}/login', methods=['POST'])
 def login():
@@ -111,13 +147,11 @@ def login():
             unread = unread_res[0]['c'] if unread_res else 0
             return jsonify({'success': True, 'role': 'teacher', 'user_id': u, 'unread_count': unread})
 
-        # ★修正: face_encoding も取得してセットアップ済みか確認
         student = execute_query("SELECT s.student_id, s.class_id, sa.face_encoding FROM students s JOIN student_auth sa ON s.student_id=sa.student_id WHERE s.student_id=%s AND sa.password=%s", (u, p), fetch=True)
         if student:
             unread_res = execute_query("SELECT COUNT(*) as c FROM chat_messages WHERE receiver_id=%s AND is_read=0", (u,), fetch=True)
             unread = unread_res[0]['c'] if unread_res else 0
             
-            # 顔データがない場合はセットアップが必要
             needs_setup = False
             if not student[0]['face_encoding']:
                 needs_setup = True
@@ -128,7 +162,7 @@ def login():
                 'user_id': u, 
                 'class_id': student[0]['class_id'], 
                 'unread_count': unread,
-                'needs_setup': needs_setup # ★追加
+                'needs_setup': needs_setup
             })
 
         return jsonify({'success': False, 'message': 'IDまたはパスワードが間違っています'}), 401
@@ -136,7 +170,6 @@ def login():
         traceback.print_exc()
         return jsonify({'success': False, 'message': 'サーバーエラー'}), 500
 
-# ★追加: 初回セットアップ用API
 @app.route(f'{API_BASE_URL}/first_setup', methods=['POST'])
 def first_setup():
     try:
@@ -148,7 +181,6 @@ def first_setup():
         if not sid or not new_pass or not desc:
             return jsonify({'success': False, 'message': 'データが不足しています'}), 400
 
-        # パスワードと顔データを更新
         execute_query("UPDATE student_auth SET password=%s, face_encoding=%s WHERE student_id=%s", (new_pass, json.dumps(desc), sid))
         
         return jsonify({'success': True})
@@ -229,24 +261,20 @@ def check_in():
         start_str = PERIOD_START_TIMES.get(int(koma), "00:00")
         start_dt = datetime.datetime.combine(datetime.date.today(), datetime.datetime.strptime(start_str, "%H:%M").time())
         
-        # 1. 開始5分前チェック
         allow_start_dt = start_dt - timedelta(minutes=5)
         if now < allow_start_dt:
-            # まだ早すぎる場合
             wait_min = int((allow_start_dt - now).total_seconds() / 60) + 1
             return jsonify({'success': False, 'message': f'{koma}限の出席登録は授業開始5分前({start_str}の5分前)からです。あと約{wait_min}分お待ちください。'}), 400
 
-        # 2. ステータス判定 (開始3分後までは出席)
-        late_threshold = start_dt + timedelta(minutes=3)  # 3分後
-        absent_threshold = start_dt + timedelta(minutes=30) # 30分後 (欠席扱い)
+        late_threshold = start_dt + timedelta(minutes=3) 
+        absent_threshold = start_dt + timedelta(minutes=30)
 
-        st_id = 1 # デフォルト出席
+        st_id = 1 
         if now > absent_threshold: 
-            st_id = 3 # 欠席 (システム上は30分遅れで欠席扱いとする場合)
+            st_id = 3
         elif now > late_threshold: 
-            st_id = 2 # 遅刻 (3分を過ぎたら遅刻)
+            st_id = 2
         
-        # 既存レコードチェック
         exist = execute_query("SELECT * FROM attendance_records WHERE student_id=%s AND attendance_date=%s AND koma=%s", (sid, today, koma), fetch=True)
         
         if exist:
@@ -257,7 +285,22 @@ def check_in():
         else:
             execute_query("INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, attendance_time) VALUES (%s,%s,%s,%s,%s,%s)", (sid, today, cid, koma, st_id, now.strftime('%H:%M:%S')))
         
-        # メッセージ調整
+        # ▼▼▼ 警告メール機能: 出席率チェック ▼▼▼
+        try:
+            rate, total, _, s_info = calculate_attendance_rate(sid)
+            # 出席率が80%未満になったら警告メール送信
+            if rate < 80.0 and s_info and s_info['email']:
+                subject = "【警告】出席率低下のお知らせ"
+                body = f"{s_info['student_name']} さん\n\n"
+                body += f"あなたの現在の出席率は {rate}% です。\n"
+                body += "出席率が80%を下回っています。単位取得に影響が出る可能性がありますので、十分注意してください。\n\n"
+                body += "出席管理システムより自動送信"
+                send_email(s_info['email'], subject, body)
+                print(f"Warning email sent to {sid} (Rate: {rate}%)")
+        except Exception as e:
+            print(f"Warning Mail Error: {e}")
+        # ▲▲▲ ここまで ▲▲▲
+
         res_msg = '出席を受け付けました'
         if st_id == 2: res_msg = '遅刻として受け付けました'
         if st_id == 3: res_msg = '欠席として記録されました'
@@ -301,21 +344,16 @@ def report_absence():
                 course_id = sch[0]['course_id']
                 course_name = sch[0]['course_name']
         
-        # 重複チェック (Frontend側でも行うがBackendでも一応スキップ処理)
         exist = execute_query("SELECT record_id, status_id FROM attendance_records WHERE student_id=%s AND attendance_date=%s AND koma=%s", (sid, date, k), fetch=True)
         
         if exist:
-            print(f"Skip duplicate: {date} Koma {k} is already {exist[0]['status_id']}")
             skipped_count += 1
             continue 
 
-        # ▼▼▼ メール本文用リストに追加（ここがループ内にあるので全件追加される） ▼▼▼
         mail_details.append(f"・{k}限 ({course_name}): {st_name}")
-        
         execute_query("INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, reason) VALUES (%s,%s,%s,%s,%s,%s)", (sid, date, course_id, k, st_id, reason))
         count += 1
 
-    # メール送信（1回だけ送信）
     if count > 0 and class_id:
         teachers_to_notify = execute_query("SELECT t.email, t.teacher_name FROM teachers t JOIN teacher_assignments ta ON t.teacher_id = ta.teacher_id WHERE ta.class_id=%s", (class_id,), fetch=True)
         
@@ -323,7 +361,6 @@ def report_absence():
             subject = f"【欠席連絡】{student_name} (クラス{class_id})"
             body_base = f"先生\n\nクラス{class_id}の {student_name} さんから欠席等の連絡がありました。\n\n"
             body_base += f"■対象日: {date}\n"
-            # ▼▼▼ ここでリストを結合して本文にする ▼▼▼
             body_base += "■内容:\n" + "\n".join(mail_details) + "\n\n"
             body_base += f"■理由:\n{reason}\n\n"
             body_base += "出席管理システムより自動送信"
@@ -344,10 +381,58 @@ def student_records():
     res = execute_query("SELECT ar.attendance_date, ar.koma, c.course_name, ar.attendance_time, sc.status_name as attendance_status FROM attendance_records ar LEFT JOIN courses c ON ar.course_id=c.course_id JOIN status_codes sc ON ar.status_id=sc.status_id WHERE ar.student_id=%s ORDER BY ar.attendance_date DESC, ar.koma DESC", (request.args.get('student_id'),), fetch=True)
     for r in res:
         if r['attendance_date']: r['attendance_date'] = r['attendance_date'].isoformat()
-        # ★重要修正: 時間が00:00:00でも文字列化する
         if r['attendance_time'] is not None: r['attendance_time'] = str(r['attendance_time'])
         if not r['course_name']: r['course_name'] = '-'
     return jsonify({'success': True, 'records': res or []})
+
+# ▼▼▼ 新機能: 出席統計API ▼▼▼
+@app.route(f'{API_BASE_URL}/get_student_stats')
+def get_student_stats():
+    sid = request.args.get('student_id')
+    rate, total, counts, _ = calculate_attendance_rate(sid)
+    
+    return jsonify({
+        'success': True,
+        'rate': rate,
+        'counts': counts,
+        'total_classes': total
+    })
+
+# ▼▼▼ 新機能: CSVダウンロードAPI ▼▼▼
+@app.route(f'{API_BASE_URL}/download_attendance_csv')
+def download_attendance_csv():
+    class_id = request.args.get('class_id')
+    year = request.args.get('year')
+    month = request.args.get('month')
+    
+    if not class_id or class_id == 'all':
+        return "クラスを選択してください", 400
+
+    query = """
+        SELECT s.student_id, s.student_name, ar.attendance_date, ar.koma, sc.status_name
+        FROM students s
+        LEFT JOIN attendance_records ar 
+            ON s.student_id = ar.student_id 
+            AND MONTH(ar.attendance_date) = %s 
+            AND YEAR(ar.attendance_date) = %s
+        LEFT JOIN status_codes sc ON ar.status_id = sc.status_id
+        WHERE s.class_id = %s
+        ORDER BY s.student_id, ar.attendance_date, ar.koma
+    """
+    records = execute_query(query, (month, year, class_id), fetch=True)
+    
+    csv_data = "学籍番号,氏名,日付,時限,ステータス\n"
+    for r in records:
+        date_str = r['attendance_date'].isoformat() if r['attendance_date'] else ""
+        status = r['status_name'] if r['status_name'] else "未登録"
+        csv_data += f"{r['student_id']},{r['student_name']},{date_str},{r['koma']},{status}\n"
+
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-disposition": f"attachment; filename=attendance_{class_id}_{year}_{month}.csv"}
+    )
+# ▲▲▲ ここまで ▲▲▲
 
 @app.route(f'{API_BASE_URL}/realtime_status')
 def realtime_status():
@@ -366,7 +451,6 @@ def realtime_status():
     if cls and cls != 'all': q += " WHERE s.class_id=%s"; p.append(cls)
     res = execute_query(q + " ORDER BY s.student_id", tuple(p), fetch=True)
     for r in res:
-        # ★重要修正: 時間が00:00:00でも文字列化する
         if r['time'] is not None: r['time'] = str(r['time'])
         if not r['attendance_status']: r['attendance_status'] = '未出席'
         if not r['course_name']: r['course_name'] = '-'
@@ -503,7 +587,6 @@ def get_student_attendance_range():
 @app.route(f'{API_BASE_URL}/get_absence_reports')
 def get_absence_reports():
     dt, cls = request.args.get('date'), request.args.get('class_id')
-    # ★変更点: (理由がある) のみを表示
     q = "SELECT ar.*, c.course_name, s.student_name, s.class_id, CASE WHEN ar.status_id=3 THEN '欠席' WHEN ar.status_id=2 THEN '遅刻' WHEN ar.status_id=4 THEN '早退' ELSE 'その他' END AS status_name FROM attendance_records ar JOIN students s ON ar.student_id=s.student_id LEFT JOIN courses c ON ar.course_id=c.course_id WHERE ar.reason IS NOT NULL AND ar.reason <> ''"
     p = []
     if dt: q+=" AND ar.attendance_date=%s"; p.append(dt)
@@ -511,7 +594,6 @@ def get_absence_reports():
     res = execute_query(q+" ORDER BY ar.attendance_date DESC, s.student_id ASC, ar.koma ASC", tuple(p), fetch=True)
     for r in res: 
         r['attendance_date'] = r['attendance_date'].isoformat()
-        # ★重要修正: 時間が00:00:00でも文字列化する (is not Noneを使用)
         if r.get('attendance_time') is not None: r['attendance_time'] = str(r['attendance_time'])
         if not r['course_name']: r['course_name'] = '-'
     return jsonify({'success': True, 'reports': res})
@@ -545,18 +627,15 @@ def send_chat():
 def broadcast_chat():
     d = request.json
     sender_id = d.get('sender_id')
-    class_ids = d.get('class_ids', []) # クラスIDのリスト
+    class_ids = d.get('class_ids', []) 
     content = d.get('content')
     
-    # 教師名取得
     t_res = execute_query("SELECT teacher_name FROM teachers WHERE teacher_id=%s", (sender_id,), fetch=True)
     teacher_name = t_res[0]['teacher_name'] if t_res else "先生"
 
     if not class_ids:
         return jsonify({'success': False, 'message': 'クラスが選択されていません'})
 
-    # 指定されたクラスの全生徒を取得
-    # IN句のプレースホルダを作成 (例: %s, %s, %s)
     format_strings = ','.join(['%s'] * len(class_ids))
     query = f"SELECT student_id, student_name, email FROM students WHERE class_id IN ({format_strings})"
     
@@ -564,15 +643,12 @@ def broadcast_chat():
     
     count = 0
     if students:
-        # クラス名を結合して件名にする (例: クラス1, 2連絡)
         class_str = ",".join(map(str, class_ids))
         subject = f"【クラス{class_str}連絡】{teacher_name} 先生より"
         body_base = f"{teacher_name} 先生からクラス全員への連絡です。\n\n----------------\n{content}\n----------------\n\n出席管理システムより自動送信"
 
         for s in students:
-            # 1. チャット履歴に保存
             execute_query("INSERT INTO chat_messages (sender_id, receiver_id, message_content) VALUES (%s,%s,%s)", (sender_id, s['student_id'], content))
-            # 2. メール送信
             if s['email']:
                 body = f"{s['student_name']} さん\n\n" + body_base
                 send_email(s['email'], subject, body)
