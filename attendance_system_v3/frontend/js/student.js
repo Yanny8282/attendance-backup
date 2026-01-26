@@ -2,9 +2,9 @@ const API_BASE_URL = '/api';
 let videoStream = null;
 let myClassId = null;
 let chatInterval = null;
-let myChart = null; // グラフ用
-let checkInInterval = null; // 顔検出ループ用
-let requiredExpression = 'happy'; // なりすまし防止用: 要求する表情
+let myChart = null; 
+let checkInInterval = null; 
+let requiredExpression = 'happy'; 
 
 const checkAuth = () => {
     const sid = sessionStorage.getItem('user_id');
@@ -15,9 +15,7 @@ const checkAuth = () => {
     return true;
 };
 
-window.addEventListener('pageshow', (event) => {
-    checkAuth();
-});
+window.addEventListener('pageshow', (event) => { checkAuth(); });
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!checkAuth()) return;
@@ -45,12 +43,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     loadMySchedule();
     
-    // AI Models Loading
     try {
         await faceapi.nets.ssdMobilenetv1.loadFromUri('../models');
         await faceapi.nets.faceLandmark68Net.loadFromUri('../models');
         await faceapi.nets.faceRecognitionNet.loadFromUri('../models');
-        // ★追加: 表情認識モデルの読み込み
         await faceapi.nets.faceExpressionNet.loadFromUri('../models');
         console.log("AI Models Loaded");
     } catch(e) {
@@ -95,14 +91,14 @@ function setupTabs() {
             if(btn.dataset.tab === 'checkin') { 
                 startCamera('videoCheckin'); 
                 autoSelectCourse(); 
-                startLivenessCheck(); // ★追加: なりすまし防止開始
+                startLivenessCheck(); 
             }
             if(btn.dataset.tab === 'register-face') { startCamera('videoRegister'); }
             if(btn.dataset.tab === 'chat') { loadTeacherList(); startChatPolling(); }
             if(btn.dataset.tab === 'schedule-view') { loadMySchedule(); }
             if(btn.dataset.tab === 'records') { 
                 loadRecordCalendar(); 
-                loadStudentStats(); // ★追加: 出席率グラフ更新
+                loadStudentStats(); 
             } 
         });
     });
@@ -137,7 +133,6 @@ async function getFaceDescriptor(vidId) {
     return Array.from(detection.descriptor); 
 }
 
-// ▼▼▼ なりすまし防止機能 (Liveness Check) ▼▼▼
 function startLivenessCheck() {
     const video = document.getElementById('videoCheckin');
     const msgEl = document.getElementById('faceStatusMsg');
@@ -145,7 +140,6 @@ function startLivenessCheck() {
     const challengeBox = document.getElementById('livenessChallengeBox');
     const instruction = document.getElementById('livenessInstruction');
 
-    // ランダムに指示を決定 (笑顔 or 素顔)
     const isSmile = Math.random() > 0.5;
     requiredExpression = isSmile ? 'happy' : 'neutral';
     
@@ -156,19 +150,15 @@ function startLivenessCheck() {
 
     checkInInterval = setInterval(async () => {
         if (!faceapi.nets.faceExpressionNet.params || video.paused || video.ended) return;
-
-        // 表情認識も行う
         const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceExpressions();
         
         if (detection) {
             const expr = detection.expressions;
-            // 指定された表情のスコアが0.7以上かチェック
             if (expr[requiredExpression] > 0.7) {
                 msgEl.textContent = "✅ 表情を確認しました！出席ボタンを押せます";
                 msgEl.style.color = "green";
-                // 授業判定がOKならボタン有効化
                 if (!document.getElementById('currentKomaId').value) {
-                    btn.disabled = true; // 授業時間外なら無効のまま
+                    btn.disabled = true; 
                 } else {
                     btn.disabled = false;
                 }
@@ -184,7 +174,6 @@ function startLivenessCheck() {
         }
     }, 500);
 }
-// ▲▲▲ ここまで ▲▲▲
 
 function setupEvents(sid) {
     document.getElementById('logoutButton').onclick = () => {
@@ -196,18 +185,32 @@ function setupEvents(sid) {
     document.getElementById('registerFaceButton').onclick = async () => {
         const btn = document.getElementById('registerFaceButton');
         btn.disabled = true;
+        btn.textContent = '登録処理中...';
         try {
             const descriptor = await getFaceDescriptor('videoRegister');
-            if (!descriptor) { alert("顔が検出されません。カメラを見てください。"); btn.disabled = false; return; }
-            await fetch(`${API_BASE_URL}/register_face`, {
+            if (!descriptor) { 
+                alert("顔が検出されません。カメラを見てください。"); 
+                btn.disabled = false; 
+                btn.textContent = '登録';
+                return; 
+            }
+            const res = await fetch(`${API_BASE_URL}/register_face`, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ student_id: sid, descriptor: descriptor })
             });
-            alert("登録完了");
+            const d = await res.json();
+            
+            if (d.success) {
+                alert("登録が完了しました！");
+            } else {
+                // ★修正: サーバーからのメッセージ（期限切れなど）を表示
+                alert("登録エラー: " + d.message);
+            }
         } catch(e) {
-            console.error(e); alert("エラーが発生しました: " + e);
+            console.error(e); alert("通信エラーが発生しました: " + e);
         } finally {
             btn.disabled = false;
+            btn.textContent = '登録';
         }
     };
 
@@ -268,7 +271,6 @@ function setupEvents(sid) {
                 
                 if (ret.success) {
                     msg.textContent = `✅ ${ret.message}`;
-                    // 打刻成功後、即座にグラフを更新して警告メール判定などを反映
                     loadStudentStats();
                 } else {
                     msg.textContent = `❌ ${ret.message}`;
@@ -459,7 +461,6 @@ async function loadRecordCalendar() {
     document.getElementById('recordCalendarContainer').innerHTML = h + '</div>';
 }
 
-// ▼▼▼ 追加: 出席率グラフ取得・描画 ▼▼▼
 async function loadStudentStats() {
     const sid = sessionStorage.getItem('user_id');
     try {
@@ -490,7 +491,6 @@ async function loadStudentStats() {
         }
     } catch(e) { console.error(e); }
 }
-// ▲▲▲ ここまで ▲▲▲
 
 async function loadTeacherList() {
     const el = document.getElementById('chatTeacherSelect');

@@ -9,6 +9,14 @@
     <title>教員ダッシュボード</title>
     <link rel="stylesheet" href="../css/common.css">
     <link rel="stylesheet" href="../css/teacher_style.css">
+    <style>
+        .action-btn-group { display: flex; gap: 5px; }
+        .btn-sm { padding: 4px 8px; font-size: 0.85rem; cursor: pointer; border: none; border-radius: 4px; }
+        .btn-permission { background-color: #17a2b8; color: white; }
+        .btn-reset { background-color: #ffc107; color: black; }
+        .btn-permission:hover { background-color: #138496; }
+        .btn-reset:hover { background-color: #e0a800; }
+    </style>
 </head>
 <body>
     <header>
@@ -37,15 +45,7 @@
             </div>
             <table id="realtimeTable">
                 <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>氏名</th>
-                        <th>クラス</th>
-                        <th>授業</th>
-                        <th>状態</th>
-                        <th>打刻時間</th>
-                        <th>操作</th>
-                    </tr>
+                    <tr><th>ID</th><th>氏名</th><th>クラス</th><th>授業</th><th>状態</th><th>打刻時間</th><th>操作</th></tr>
                 </thead>
                 <tbody></tbody>
             </table>
@@ -57,38 +57,31 @@
                 <label>クラス選択: <select id="scheduleClassSelect"></select></label>
                 <label>年月: <input type="month" id="scheduleMonthInput"></label>
             </div>
-            
             <div style="margin-bottom: 15px; padding: 5px 0;">
-                    <label>新規授業マスタ登録: 
-                        <input type="text" id="newCourseName" placeholder="授業名" size="15">
-                    </label>
-                    <button id="addCourseMasterBtn">追加</button>
-                </div>
-                
-                <div style="margin:10px 0; background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #ddd;">
-                    <strong>編集モード:</strong>
-                    <label style="margin-right:15px; white-space: nowrap;"><input type="radio" name="schMode" value="single" checked> 個別クリックで編集</label>
-                    <label style="white-space: nowrap;"><input type="radio" name="schMode" value="multi"> 複数選択して一括適用</label>
-                    
-                    <span id="multiControls" style="display:none; margin-left:15px; padding-left:15px; border-left:2px solid #ccc;">
-                        <label>適用する授業: <select id="schMultiCourseSelect"></select></label>
-                        <button id="schMultiApplyBtn">選択した日に適用</button>
-                    </span>
-                </div>
-            
+                <label>新規授業マスタ登録: <input type="text" id="newCourseName" placeholder="授業名" size="15"></label>
+                <button id="addCourseMasterBtn">追加</button>
+            </div>
+            <div style="margin:10px 0; background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #ddd;">
+                <strong>編集モード:</strong>
+                <label style="margin-right:15px;"><input type="radio" name="schMode" value="single" checked> 個別編集</label>
+                <label><input type="radio" name="schMode" value="multi"> 一括適用</label>
+                <span id="multiControls" style="display:none; margin-left:15px; padding-left:15px; border-left:2px solid #ccc;">
+                    <label>適用授業: <select id="schMultiCourseSelect"></select></label>
+                    <button id="schMultiApplyBtn">適用</button>
+                </span>
+            </div>
             <div id="scheduleCalendarWrapper"></div>
         </div>
 
         <div id="student-attendance" class="tab-content">
             <h2>📅 生徒別 出席カレンダー</h2>
             <div style="margin-bottom: 15px;">
-                <label style="white-space: nowrap;">クラス: <select id="calClassFilter"><option value="all">全クラス</option></select></label>
-                <label style="white-space: nowrap;">生徒: <select id="calStudentSelect"></select></label>
-                <label style="white-space: nowrap;">表示形式: <select id="calViewType"><option value="month">月間</option><option value="week">週間</option></select></label>
-                <label style="white-space: nowrap;">基準日: <input type="date" id="calBaseDate"></label>
+                <label>クラス: <select id="calClassFilter"><option value="all">全クラス</option></select></label>
+                <label>生徒: <select id="calStudentSelect"></select></label>
+                <label>形式: <select id="calViewType"><option value="month">月間</option><option value="week">週間</option></select></label>
+                <label>基準日: <input type="date" id="calBaseDate"></label>
                 <button id="showCalendarBtn">表示</button>
             </div>
-            
             <div style="margin-top:10px; padding-top:10px; border-top:1px dashed #ccc;">
                 <span>📥 CSV出力: </span>
                 <input type="month" id="csvMonthInput">
@@ -99,7 +92,6 @@
 
         <div id="student-crud" class="tab-content">
             <h2>👥 生徒データの管理</h2>
-            
             <div style="margin-bottom: 15px; display:flex; align-items:center; gap:15px;">
                 <label>絞り込み: <select id="studentCrudClassFilter"><option value="all">全クラス</option></select></label>
                 <button onclick="openStudentForm(null)">＋ 新規生徒を追加</button>
@@ -108,32 +100,17 @@
             <div id="studentForm" style="display:none;">
                 <h3>生徒情報の入力</h3>
                 <div>
-                    <label style="white-space: nowrap;">学籍番号: <input type="number" id="crudSid" placeholder="例: 240001"></label>
-                    <label style="white-space: nowrap;">氏名: <input type="text" id="crudSName"></label>
-                    
-                    <label style="white-space: nowrap;">クラス: 
-                        <select id="crudSClassSelect" style="padding: 5px;"></select>
-                        <input type="number" id="crudSClassInput" placeholder="新しいクラスID" style="display:none; width: 120px; margin-left: 5px;">
-                    </label>
+                    <label>学籍番号: <input type="number" id="crudSid" placeholder="例: 240001"></label>
+                    <label>氏名: <input type="text" id="crudSName"></label>
+                    <label>クラス: <select id="crudSClassSelect" style="padding: 5px;"></select><input type="number" id="crudSClassInput" placeholder="新しいクラスID" style="display:none; width: 120px; margin-left: 5px;"></label>
                 </div>
                 <div>
-                    <label style="white-space: nowrap;">性別: 
-                        <select id="crudSGen" style="padding: 5px;">
-                            <option value="男">男</option>
-                            <option value="女">女</option>
-                            <option value="設定しない">設定しない</option>
-                        </select>
-                    </label>
-                    <label style="white-space: nowrap;">生年月日: <input type="date" id="crudSBirth"></label>
+                    <label>性別: <select id="crudSGen" style="padding: 5px;"><option value="男">男</option><option value="女">女</option><option value="設定しない">設定しない</option></select></label>
+                    <label>生年月日: <input type="date" id="crudSBirth"></label>
                 </div>
                 <div>
-                    <label style="white-space: nowrap;">Email: <input type="email" id="crudSEmail" style="width:250px;"></label>
-                    <label style="white-space: nowrap;">パスワード: 
-                        <div style="position:relative; display:inline-block;">
-                            <input type="password" id="crudSPass" onfocus="this.select()" style="padding-right:30px;">
-                            <span id="toggleSPass" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:1.2rem; user-select:none;">👁️</span>
-                        </div>
-                    </label>
+                    <label>Email: <input type="email" id="crudSEmail" style="width:250px;"></label>
+                    <label>パスワード: <input type="password" id="crudSPass"><button type="button" onclick="togglePassVisibility('crudSPass')">👁️</button></label>
                 </div>
                 <div style="margin-top: 10px;">
                     <button onclick="saveStudent()">保存</button>
@@ -144,13 +121,7 @@
 
             <table id="studentListTable">
                 <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>名前</th>
-                        <th>クラス</th>
-                        <th>Email</th>
-                        <th>操作</th>
-                    </tr>
+                    <tr><th>ID</th><th>名前</th><th>クラス</th><th>Email</th><th>アクション</th></tr>
                 </thead>
                 <tbody></tbody>
             </table>
@@ -159,45 +130,14 @@
         <div id="teacher-crud" class="tab-content">
             <h2>🎓 教員データの管理</h2>
             <button onclick="openTeacherForm(null)" style="margin-bottom: 10px;">＋ 新規教員を追加</button>
-            
             <div id="teacherForm" style="display:none;">
                 <h3>教員情報の入力</h3>
-                <div>
-                    <label style="white-space: nowrap;">教員ID: <input type="text" id="crudTid" placeholder="例: T12345"></label>
-                    <label style="white-space: nowrap;">氏名: <input type="text" id="crudTName"></label>
-                </div>
-                <div style="margin: 10px 0;">
-                    <label style="white-space: nowrap;">担当クラス(複数可):</label>
-                    <div id="crudTClassCheckboxes" style="border:1px solid #ccc; padding:10px; background:white; max-height:100px; overflow-y:scroll;"></div>
-                </div>
-                <div>
-                    <label style="white-space: nowrap;">Email: <input type="email" id="crudTEmail" style="width:250px;"></label>
-                    <label style="white-space: nowrap;">パスワード: 
-                        <div style="position:relative; display:inline-block;">
-                            <input type="password" id="crudTPass" onfocus="this.select()" style="padding-right:30px;">
-                            <span id="toggleTPass" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:1.2rem; user-select:none;">👁️</span>
-                        </div>
-                    </label>
-                </div>
-                <div style="margin-top: 10px;">
-                    <button onclick="saveTeacher()">保存</button>
-                    <button onclick="deleteTeacher()" class="delete-btn">削除</button>
-                    <button onclick="document.getElementById('teacherForm').style.display='none'" style="background:#6c757d;">キャンセル</button>
-                </div>
+                <div><label>ID: <input type="text" id="crudTid"></label><label>氏名: <input type="text" id="crudTName"></label></div>
+                <div><label>Email: <input type="email" id="crudTEmail"></label><label>PW: <input type="password" id="crudTPass"></label></div>
+                <div style="margin:10px 0;"><label>担当クラス:</label><div id="crudTClassCheckboxes" style="border:1px solid #ccc; padding:10px; max-height:100px; overflow-y:scroll;"></div></div>
+                <div style="margin-top:10px;"><button onclick="saveTeacher()">保存</button><button onclick="deleteTeacher()" class="delete-btn">削除</button><button onclick="document.getElementById('teacherForm').style.display='none'" style="background:#6c757d;">キャンセル</button></div>
             </div>
-
-            <table id="teacherListTable">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>名前</th>
-                        <th>担当クラス</th>
-                        <th>Email</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+            <table id="teacherListTable"><thead><tr><th>ID</th><th>名前</th><th>担当</th><th>Email</th><th>操作</th></tr></thead><tbody></tbody></table>
         </div>
 
         <div id="absence-reports" class="tab-content">
@@ -207,80 +147,38 @@
                 <label>クラス: <select id="absenceClassFilter"><option value="all">全クラス</option></select></label>
                 <button id="refreshAbsenceReports">更新</button>
             </div>
-            <table id="absenceTable">
-                <thead>
-                    <tr>
-                        <th>日付</th>
-                        <th>氏名</th>
-                        <th>対象</th>
-                        <th>理由</th>
-                        <th style="width: 80px;">詳細</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+            <table id="absenceTable"><thead><tr><th>日付</th><th>氏名</th><th>対象</th><th>理由</th><th>詳細</th></tr></thead><tbody></tbody></table>
         </div>
 
         <div id="chat-mgr" class="tab-content">
-            <h2>💬 生徒との連絡 (チャット)</h2>
-            <div style="margin-bottom: 10px; display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <label>クラス: <select id="chatClassFilter"><option value="all">全クラス</option></select></label>
-                    <label style="white-space: nowrap;">生徒を選択: <select id="chatStudentSelect"><option value="">選択してください</option></select></label>
-                </div>
-                <button id="broadcastChatButton" style="background-color:#ff9800;">📢 クラス一斉送信</button>
-            </div>
-            
-            <div id="teacherChatWindow" class="chat-window">
-                <div style="text-align:center; color:#888; margin-top:50px;">生徒を選択すると履歴が表示されます</div>
-            </div>
-            
-            <div style="display:flex; gap:10px;">
-                <input type="text" id="teacherChatInput" placeholder="メッセージを入力..." style="flex:1;">
-                <button id="teacherSendChatButton">送信</button>
-            </div>
+            <h2>💬 チャット・一斉送信</h2>
+            <div style="margin-bottom:10px;"><label>クラス: <select id="chatClassFilter"><option value="all">全クラス</option></select></label><label>生徒: <select id="chatStudentSelect"></select></label><button id="broadcastChatButton" style="background-color:#ff9800;">📢 一斉送信</button></div>
+            <div id="teacherChatWindow" class="chat-window"></div>
+            <div style="display:flex; gap:10px;"><input type="text" id="teacherChatInput" style="flex:1;"><button id="teacherSendChatButton">送信</button></div>
         </div>
     </div>
 
-    <div id="statusChangeModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:25px; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.5); z-index:1000; width:300px;">
-        <h3 style="margin-top:0;">ステータス変更</h3>
-        <p id="stModalInfo" style="font-weight:bold; margin-bottom:15px;"></p>
-        <label>コマ:</label><select id="stModalKoma" style="width:100%; padding:8px; margin-bottom:10px;"></select>
-        <label>授業:</label><select id="stModalCourse" style="width:100%; padding:8px; margin-bottom:10px;"></select>
-        <label>状態:</label><select id="stModalSelect" style="width:100%; padding:8px; margin-bottom:20px;">
-            <option value="1">出席</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option>
-        </select>
-        <div style="text-align:right;">
-            <button onclick="document.getElementById('statusChangeModal').style.display='none'" style="background:#6c757d; margin-right:10px;">キャンセル</button>
-            <button id="stModalSave">保存</button>
-        </div>
+    <div id="statusChangeModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.5); width:300px;">
+        <h3>ステータス変更</h3>
+        <p id="stModalInfo" style="font-weight:bold;"></p>
+        <label>コマ: <select id="stModalKoma" style="width:100%; margin-bottom:10px;"></select></label>
+        <label>授業: <select id="stModalCourse" style="width:100%; margin-bottom:10px;"></select></label>
+        <label>状態: <select id="stModalSelect" style="width:100%; margin-bottom:20px;"><option value="1">出席</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></label>
+        <div style="display:flex; justify-content:space-between;"><button id="stModalDelete" style="background:#dc3545; color:white;">🗑️ 削除</button><div><button onclick="document.getElementById('statusChangeModal').style.display='none'" style="background:#6c757d; margin-right:5px;">キャンセル</button><button id="stModalSave">保存</button></div></div>
     </div>
     
-    <div id="schEditModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:25px; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.5); z-index:1000; width:300px;">
-        <h3 style="margin-top:0;">授業の設定</h3>
-        <p id="schModalInfo" style="font-weight:bold; margin-bottom:15px;"></p>
-        <label>授業を選択:</label><select id="schModalCourse" style="width:100%; padding:8px; margin-bottom:20px;"></select>
-        <div style="text-align:right;">
-            <button onclick="document.getElementById('schEditModal').style.display='none'" style="background:#6c757d; margin-right:10px;">キャンセル</button>
-            <button id="schModalSave">保存</button>
-        </div>
+    <div id="schEditModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.5); width:300px;">
+        <h3>授業変更</h3><p id="schModalInfo"></p><select id="schModalCourse" style="width:100%; margin-bottom:20px;"></select>
+        <div style="text-align:right;"><button onclick="document.getElementById('schEditModal').style.display='none'" style="background:#6c757d; margin-right:10px;">キャンセル</button><button id="schModalSave">保存</button></div>
     </div>
 
-    <div id="broadcastModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:25px; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.5); z-index:1000; width:350px;">
-        <h3 style="margin-top:0;">📢 クラス一斉送信</h3>
-        <p style="margin-bottom:10px;">送信先のクラスを選択してください(複数可):</p>
-        
-        <div id="broadcastClassCheckboxes" style="border:1px solid #ccc; padding:10px; background:#f9f9f9; max-height:150px; overflow-y:scroll; margin-bottom:15px;">
-            </div>
-        
-        <textarea id="broadcastInput" rows="5" style="width:100%; margin-bottom:15px;" placeholder="連絡事項を入力..."></textarea>
-        
-        <div style="text-align:right;">
-            <button onclick="document.getElementById('broadcastModal').style.display='none'" style="background:#6c757d; margin-right:10px;">キャンセル</button>
-            <button id="submitBroadcast" style="background-color:#ff9800;">送信</button>
-        </div>
+    <div id="broadcastModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.5); width:350px;">
+        <h3>📢 一斉送信</h3><div id="broadcastClassCheckboxes" style="border:1px solid #ccc; padding:10px; max-height:150px; overflow-y:scroll; margin-bottom:15px;"></div>
+        <textarea id="broadcastInput" rows="5" style="width:100%; margin-bottom:15px;"></textarea>
+        <div style="text-align:right;"><button onclick="document.getElementById('broadcastModal').style.display='none'" style="background:#6c757d; margin-right:10px;">キャンセル</button><button id="submitBroadcast" style="background:#ff9800;">送信</button></div>
     </div>
 
     <script src="../js/teacher.js"></script>
+    <script>function togglePassVisibility(id){const x=document.getElementById(id);x.type=x.type==='password'?'text':'password';}</script>
 </body>
 </html>
