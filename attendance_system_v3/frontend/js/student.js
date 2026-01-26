@@ -203,7 +203,7 @@ function setupEvents(sid) {
             if (d.success) {
                 alert("登録が完了しました！");
             } else {
-                // エラーメッセージの表示
+                // エラー表示を詳細に
                 alert("登録エラー: " + d.message);
             }
         } catch(e) {
