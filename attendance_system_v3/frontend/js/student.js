@@ -203,7 +203,7 @@ function setupEvents(sid) {
             if (d.success) {
                 alert("登録が完了しました！");
             } else {
-                // ★修正: サーバーからのメッセージ（期限切れなど）を表示
+                // エラーメッセージの表示
                 alert("登録エラー: " + d.message);
             }
         } catch(e) {
@@ -381,7 +381,6 @@ async function autoSelectCourse() {
             if (item) {
                 hiddenCourse.value = item.course_id; displayCourse.value = item.course_name;
                 info.textContent = `📅 現在: ${tk}限 ${item.course_name}`;
-                // Livenessチェックが通るまではボタン無効のまま
             } else {
                 hiddenCourse.value = ''; displayCourse.value = '(授業なし)';
                 info.textContent = `⚠️ ${tk}限 授業なし`;
@@ -461,6 +460,7 @@ async function loadRecordCalendar() {
     document.getElementById('recordCalendarContainer').innerHTML = h + '</div>';
 }
 
+// ▼▼▼ 追加: 出席率グラフ取得・描画 ▼▼▼
 async function loadStudentStats() {
     const sid = sessionStorage.getItem('user_id');
     try {
@@ -491,6 +491,7 @@ async function loadStudentStats() {
         }
     } catch(e) { console.error(e); }
 }
+// ▲▲▲ ここまで ▲▲▲
 
 async function loadTeacherList() {
     const el = document.getElementById('chatTeacherSelect');
