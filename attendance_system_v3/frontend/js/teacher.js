@@ -1,4 +1,4 @@
-// ★修正箇所: HTTPS化に伴い、相対パスに変更
+// HTTPS化に伴い、相対パスに変更
 const API_BASE_URL = '/api';
 let courses=[], komas=[], students=[], teachers=[], schSel=[], chatTimer=null, editStData=null, editSchData=null;
 let allClassIds = [];
@@ -37,6 +37,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const now = new Date();
     document.getElementById('realtimeDate').value = today;
     document.getElementById('scheduleMonthInput').value = `${now.getFullYear()}-${('0'+(now.getMonth()+1)).slice(-2)}`;
+    // ★追加: CSV用の月入力も初期化
+    document.getElementById('csvMonthInput').value = `${now.getFullYear()}-${('0'+(now.getMonth()+1)).slice(-2)}`;
+
     document.getElementById('calBaseDate').value = today;
     document.getElementById('absenceDateFilter').value = today;
     
@@ -77,27 +80,20 @@ async function initData() {
         const schSel = document.getElementById('scheduleClassSelect');
         if(schSel && schSel.options.length > 0) schSel.value = schSel.options[0].value;
 
-        // ★追加: 現在時刻からコマを自動選択
         autoSelectCurrentKoma();
         
     } catch(e) { console.error("データ初期化エラー:", e); }
 }
 
-// ★修正: 休み時間に入ったら「次のコマ」を選択するロジック
 function autoSelectCurrentKoma() {
     const now = new Date();
     const min = now.getHours() * 60 + now.getMinutes();
-    let currentKoma = 1; // デフォルトは1限
+    let currentKoma = 1;
 
-    // 授業終了時刻を基準に切り替える
-    // 1限終了: 10:45 (645分) → これを過ぎたら2限
-    // 2限終了: 12:30 (750分) → これを過ぎたら3限
-    // 3限終了: 15:00 (900分) → これを過ぎたら4限
-    
-    if (min < 645) currentKoma = 1;      // 〜 10:45 (1限中)
-    else if (min < 750) currentKoma = 2; // 〜 12:30 (休み時間・2限中)
-    else if (min < 900) currentKoma = 3; // 〜 15:00 (昼休み・3限中)
-    else currentKoma = 4;                // 15:00 以降 (休み時間・4限・放課後)
+    if (min < 645) currentKoma = 1;
+    else if (min < 750) currentKoma = 2;
+    else if (min < 900) currentKoma = 3;
+    else currentKoma = 4;
 
     const komaSelect = document.getElementById('realtimeKoma');
     if (komaSelect) {
@@ -108,7 +104,6 @@ function autoSelectCurrentKoma() {
 function setupEvents() {
     document.getElementById('logoutButton').onclick = () => { 
         sessionStorage.clear(); 
-        // ★変更: 履歴を残さずに移動
         location.replace('../html/index.html'); 
     };
     
@@ -152,9 +147,10 @@ function setupEvents() {
     document.getElementById('showCalendarBtn').onclick = loadCalendar;
     document.getElementById('stModalSave').onclick = saveStatus;
 
+    // ★以前あったCSVボタンの処理は削除し、末尾の window.downloadCsv に一元化しました
+
     document.getElementById('studentCrudClassFilter').onchange = loadStudentList;
 
-    // パスワード表示切替
     const setupToggle = (inputId, iconId) => {
         const inp = document.getElementById(inputId);
         const icon = document.getElementById(iconId);
@@ -173,7 +169,6 @@ function setupEvents() {
     setupToggle('crudSPass', 'toggleSPass');
     setupToggle('crudTPass', 'toggleTPass');
 
-    // クラス選択ロジック
     const crudSel = document.getElementById('crudSClassSelect');
     if(crudSel) {
         crudSel.onchange = () => {
@@ -188,7 +183,6 @@ function setupEvents() {
         };
     }
 
-    // ▼▼▼ バリデーション (saveStudent) ▼▼▼
     window.saveStudent = async () => {
         const sid = document.getElementById('crudSid').value.trim();
         const sname = document.getElementById('crudSName').value.trim();
@@ -203,7 +197,6 @@ function setupEvents() {
         const email = document.getElementById('crudSEmail').value.trim();
         const pass = document.getElementById('crudSPass').value; 
 
-        // エラーチェック
         let errorMsg = [];
         if(!sid) errorMsg.push("・学籍番号を入力してください");
         else if(sid.length !== 6) errorMsg.push("・学籍番号は6桁で入力してください");
@@ -252,7 +245,6 @@ function setupEvents() {
         document.getElementById('studentForm').style.display='none'; loadStudentList();
     };
     
-    // ▼▼▼ バリデーション (saveTeacher) ▼▼▼
     window.saveTeacher = async () => {
         const tid = document.getElementById('crudTid').value.trim();
         const tname = document.getElementById('crudTName').value.trim();
@@ -261,7 +253,6 @@ function setupEvents() {
 
         let errorMsg = [];
         if(!tid) errorMsg.push("・教員IDを入力してください");
-        // ★修正: T + 5桁チェック
         else if(!/^T\d{5}$/.test(tid)) errorMsg.push("・教員IDは「T」で始まる数字5桁で入力してください（例: T12345）");
 
         if(!tname) errorMsg.push("・氏名を入力してください");
@@ -312,28 +303,17 @@ function setupEvents() {
     document.getElementById('chatClassFilter').onchange = loadChatStudents;
     document.getElementById('chatStudentSelect').onchange = loadChatHist;
     
-    // ▼▼▼ チャット送信ボタン (連打防止 & 空白対策) ▼▼▼
     document.getElementById('teacherSendChatButton').onclick = async () => {
         const btn = document.getElementById('teacherSendChatButton');
-        // ★修正: .trim() を追加
         const txt = document.getElementById('teacherChatInput').value.trim();
         const sid = document.getElementById('chatStudentSelect').value;
-        
         if(!txt||!sid) return;
-
         btn.disabled = true;
-
         try {
             await fetch(`${API_BASE_URL}/chat/send`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({sender_id:sessionStorage.getItem('user_id'), receiver_id:sid, content:txt})});
             document.getElementById('teacherChatInput').value=''; loadChatHist();
-        } catch(e) {
-            console.error(e);
-            alert("送信エラー");
-        } finally {
-            btn.disabled = false;
-        }
+        } catch(e) { console.error(e); alert("送信エラー"); } finally { btn.disabled = false; }
     };
-    // ▲▲▲ 修正ここまで ▲▲▲
 
     document.getElementById('broadcastChatButton').onclick = () => {
         const container = document.getElementById('broadcastClassCheckboxes');
@@ -348,10 +328,8 @@ function setupEvents() {
     };
 
     document.getElementById('submitBroadcast').onclick = async () => {
-        // ★修正: .trim() を追加
         const content = document.getElementById('broadcastInput').value.trim();
         const btn = document.getElementById('submitBroadcast');
-        
         const selectedClasses = [];
         document.querySelectorAll('#broadcastClassCheckboxes input:checked').forEach(cb => {
             selectedClasses.push(parseInt(cb.value));
@@ -415,9 +393,7 @@ async function loadRealtime() {
     });
 }
 
-// ★追加: リアルタイム画面から生徒詳細ページへ遷移する関数
 window.jumpToStudentDetail = async (sid, classId) => {
-    // 1. タブを「生徒別出席簿」に切り替え
     document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
     const targetBtn = document.querySelector('.tab-button[data-tab="student-attendance"]');
     if(targetBtn) targetBtn.classList.add('active');
@@ -426,11 +402,9 @@ window.jumpToStudentDetail = async (sid, classId) => {
     const targetContent = document.getElementById('student-attendance');
     if(targetContent) targetContent.style.display='block';
 
-    // 2. クラスフィルタを選択
     const classSelect = document.getElementById('calClassFilter');
-    const targetClassStr = String(classId); // 文字列として比較
+    const targetClassStr = String(classId); 
     
-    // プルダウンにそのクラスが存在するか確認してからセット
     let classExists = false;
     for(let i=0; i<classSelect.options.length; i++){
         if(classSelect.options[i].value === targetClassStr){
@@ -440,18 +414,14 @@ window.jumpToStudentDetail = async (sid, classId) => {
     }
     classSelect.value = classExists ? targetClassStr : 'all';
 
-    // 3. 日付を同期 (リアルタイム画面の日付をカレンダーの基準日にセット)
     const rtDate = document.getElementById('realtimeDate').value;
     if(rtDate) document.getElementById('calBaseDate').value = rtDate;
 
-    // 4. 生徒リストを再読み込み (awaitで完了を待つ)
     await loadCalStudents();
 
-    // 5. 生徒を選択
     const studentSelect = document.getElementById('calStudentSelect');
     studentSelect.value = sid;
 
-    // 6. カレンダーを表示
     loadCalendar();
 };
 
@@ -460,14 +430,11 @@ async function loadCalStudents() {
     const r = await fetch(`${API_BASE_URL}/get_student_list?class_id=${cid}`);
     const d = await r.json();
     const s = document.getElementById('calStudentSelect'); 
-    s.innerHTML = '<option value="">選択してください</option>'; // 初期値
+    s.innerHTML = '<option value="">選択してください</option>'; 
     d.students.forEach(i=>{ const o=document.createElement('option'); o.value=i.student_id; o.textContent=i.student_name; s.appendChild(o); });
-    
-    // ★追加: リストを再読み込みしたら、表示中のカレンダーはクリアする
     document.getElementById('calendarContainer').innerHTML = '';
 }
 
-// カレンダー生成ロジック
 async function loadCalendar() {
     const sid = document.getElementById('calStudentSelect').value;
     if(!sid) { alert("生徒を選択してください"); return; }
@@ -600,7 +567,6 @@ async function applyMultiSch() {
     schSel=[]; loadSchedule();
 }
 
-// クラスフィルタ対応
 async function loadStudentList() {
     const clsFilter = document.getElementById('studentCrudClassFilter').value;
     const url = `${API_BASE_URL}/get_student_list` + (clsFilter !== 'all' ? `?class_id=${clsFilter}` : '');
@@ -614,13 +580,10 @@ async function loadStudentList() {
 
 window.openStudentForm = (id) => {
     document.getElementById('studentForm').style.display='block';
-    
-    // クラスプルダウンの生成ロジック
     const sel = document.getElementById('crudSClassSelect');
     const inp = document.getElementById('crudSClassInput');
     sel.innerHTML = '';
     
-    // 既存のクラスを追加
     if(allClassIds && allClassIds.length > 0) {
         allClassIds.forEach(c => {
             const o = document.createElement('option');
@@ -630,13 +593,11 @@ window.openStudentForm = (id) => {
         });
     }
     
-    // 新規追加オプションを追加
     const newOp = document.createElement('option');
     newOp.value = 'new';
     newOp.textContent = '＋ 新規クラス追加';
     sel.appendChild(newOp);
     
-    // 入力欄は最初は隠す
     inp.style.display = 'none';
     inp.value = '';
 
@@ -644,15 +605,10 @@ window.openStudentForm = (id) => {
         const s = students.find(x=>x.student_id==id);
         document.getElementById('crudSid').value=s.student_id; document.getElementById('crudSid').disabled=true;
         document.getElementById('crudSName').value=s.student_name; 
-        
-        // クラス選択状態を復元
         if(s.class_id) { sel.value = s.class_id; } else { sel.selectedIndex = 0; }
-
         document.getElementById('crudSGen').value = s.gender || '設定しない';
         document.getElementById('crudSBirth').value=s.birthday;
         document.getElementById('crudSEmail').value=s.email;
-        
-        // パスワードの復元
         const p = document.getElementById('crudSPass');
         p.value = s.password || ''; 
         p.type = 'password';
@@ -661,8 +617,6 @@ window.openStudentForm = (id) => {
         document.getElementById('crudSid').disabled=false; document.getElementById('crudSid').value='';
         sel.selectedIndex = 0;
         document.getElementById('crudSGen').value = '設定しない';
-        
-        // 新規時の初期パスワード
         const p = document.getElementById('crudSPass');
         p.value = 'password';
         p.type = 'password';
@@ -699,12 +653,9 @@ window.openTeacherForm = (id) => {
         document.getElementById('crudTid').value=t.teacher_id; document.getElementById('crudTid').disabled=true;
         document.getElementById('crudTName').value=t.teacher_name; document.getElementById('crudTEmail').value=t.email;
         if(t.assigned_classes) { t.assigned_classes.forEach(cid => { const cb = container.querySelector(`input[value="${cid}"]`); if(cb) cb.checked = true; }); }
-        
-        // パスワードの復元
         p.value = t.password || ''; 
     } else {
         document.getElementById('crudTid').disabled=false; document.getElementById('crudTid').value='';
-        // 新規時の初期パスワード
         p.value = 'password';
     }
 };
@@ -799,4 +750,27 @@ window.toggleDetail = (id) => {
     } else {
         row.style.display = 'none';
     }
+};
+
+// ▼▼▼ CSVダウンロード関数 (HTMLから直接呼び出し) ▼▼▼
+window.downloadCsv = function() {
+    const cls = document.getElementById('calClassFilter').value;
+    const ymVal = document.getElementById('csvMonthInput').value;
+    
+    console.log("Download clicked. Class:", cls, "Month:", ymVal);
+
+    if (cls === 'all' || !cls) {
+        alert("クラスを選択してください（CSV出力はクラス単位です）");
+        return;
+    }
+    if (!ymVal) {
+        alert("年月を選択してください");
+        return;
+    }
+    
+    const [year, month] = ymVal.split('-');
+    
+    // 直接遷移してダウンロード
+    const url = `${API_BASE_URL}/download_attendance_csv?class_id=${cls}&year=${year}&month=${month}`;
+    window.location.href = url;
 };
