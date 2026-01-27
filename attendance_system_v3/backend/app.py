@@ -43,7 +43,6 @@ basic_auth = BasicAuth(app)
 # ==========================================
 # ▼ 定数・設定
 # ==========================================
-# ★修正: ステータス5「記録なし」を追加
 STATUS_NAMES = {
     1: "出席",
     2: "遅刻",
@@ -60,11 +59,7 @@ PERIOD_START_TIMES = {
     4: "15:15" 
 }
 
-# ★修正: 自動「記録なし」判定を行う時刻 (授業開始 + 35分)
-# 1限 09:10 -> 09:45
-# 2限 11:00 -> 11:35
-# 3限 13:30 -> 14:05
-# 4限 15:15 -> 15:50
+# 自動「記録なし」判定を行う時刻 (授業開始 + 35分)
 AUTO_ABSENT_TRIGGER_TIMES = {
     1: "09:45",
     2: "11:35",
@@ -107,6 +102,7 @@ def calc_geo_distance(lat1, lon1, lat2, lon2):
 def calc_face_distance(vec1, vec2):
     return np.linalg.norm(np.array(vec1) - np.array(vec2))
 
+# 出席率計算ロジック (遅刻・早退は2/3点)
 def calculate_attendance_rate(student_id):
     s_info = execute_query("SELECT class_id, student_name, email FROM students WHERE student_id=%s", (student_id,), fetch=True)
     if not s_info or not s_info[0]['class_id']:
@@ -125,14 +121,11 @@ def calculate_attendance_rate(student_id):
         GROUP BY status_id
     """, (student_id, today), fetch=True)
     
-    # ★修正: ID 5 (記録なし) もカウント枠に追加
     counts = {1:0, 2:0, 3:0, 4:0, 5:0}
     for r in stats_res:
         if r['status_id'] in counts:
             counts[r['status_id']] = r['cnt']
 
-    # 点数計算: 出席(1)=1点, 遅刻(2)/早退(4)=2/3点
-    # 欠席(3)と記録なし(5)は0点なので加算しない (分母には含まれるため出席率は下がる)
     attended_points = (counts[1] * 1.0) + ((counts[2] + counts[4]) * (2/3))
     
     rate = 0.0
@@ -160,9 +153,7 @@ def auto_mark_absent_loop():
             for koma, trigger_time in AUTO_ABSENT_TRIGGER_TIMES.items():
                 trigger_dt = datetime.datetime.strptime(f"{today_str} {trigger_time}", '%Y-%m-%d %H:%M')
                 
-                # 開始35分後を過ぎていたら実行
                 if now > trigger_dt:
-                    # まだレコードがない生徒に「5: 記録なし」を登録
                     sql = """
                     INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, reason)
                     SELECT 
@@ -170,7 +161,7 @@ def auto_mark_absent_loop():
                         cs.schedule_date, 
                         cs.course_id, 
                         cs.koma, 
-                        5, -- ★5:記録なし
+                        5, 
                         '自動判定(35分経過)'
                     FROM students s
                     JOIN class_schedule cs ON s.class_id = cs.class_id
@@ -183,7 +174,7 @@ def auto_mark_absent_loop():
                     """
                     execute_query(sql, (today_str, koma, today_str, koma))
             
-            time.sleep(60) # 1分待機
+            time.sleep(60)
             
         except Exception as e:
             print(f"Auto Mark Error: {e}")
@@ -199,6 +190,7 @@ def login():
         d = request.json
         u = str(d.get('id')).strip()
         p = str(d.get('password')).strip()
+        
         teacher = execute_query("SELECT teacher_id, is_admin FROM teachers WHERE teacher_id=%s AND password=%s", (u, p), fetch=True)
         if teacher:
             unread = execute_query("SELECT COUNT(*) as c FROM chat_messages WHERE receiver_id=%s AND is_read=0", (u,), fetch=True)[0]['c']
@@ -413,7 +405,13 @@ def get_student_list():
     p = ()
     if cls and cls!='all': q+=" WHERE s.class_id=%s"; p=(cls,)
     res = execute_query(q, p, fetch=True)
-    for r in res: r['birthday'] = r['birthday'].isoformat() if r['birthday'] else ''
+    
+    # ★追加: 各生徒の出席率を計算してレスポンスに含める
+    for r in res:
+        r['birthday'] = r['birthday'].isoformat() if r['birthday'] else ''
+        rate, _, _, _ = calculate_attendance_rate(r['student_id'])
+        r['attendance_rate'] = rate
+
     return jsonify({'success': True, 'students': res})
 
 @app.route(f'{API_BASE_URL}/add_student', methods=['POST'])

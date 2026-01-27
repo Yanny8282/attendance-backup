@@ -359,13 +359,12 @@ async function loadCalendar() {
 
             let b = '';
             recs.forEach(r => {
-                // ★修正: ステータスによる色分け (記録なし=5 を強調)
                 let c = '';
                 if (r.status_id == 1) c = 'bg-present';
                 else if (r.status_id == 2) c = 'bg-late';
                 else if (r.status_id == 3) c = 'bg-absent';
                 else if (r.status_id == 4) c = 'bg-late'; // 早退
-                else if (r.status_id == 5) c = 'bg-norecord'; // ★記録なし(強調)
+                else if (r.status_id == 5) c = 'bg-norecord'; // ★記録なし（強調）
                 
                 b += `<div class="mini-badge ${c}" onclick="openStModal(${sidEl.value},'',${r.course_id},${r.koma},'${dt}')">${r.koma}:${r.status_text}</div>`
             });
@@ -537,7 +536,7 @@ async function loadStudentList() {
                 <td>${s.student_id}</td>
                 <td>${s.student_name}</td>
                 <td>${s.class_id}</td>
-                <td>${s.email || ''}</td>
+                <td>${s.attendance_rate}%</td> <td>${s.email || ''}</td>
                 <td>
                     <div class="action-btn-group">
                         <button class="btn-sm" onclick="openStudentForm(${s.student_id})">編集</button>
