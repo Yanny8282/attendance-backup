@@ -96,7 +96,7 @@ def calc_geo_distance(lat1, lon1, lat2, lon2):
 def calc_face_distance(vec1, vec2):
     return np.linalg.norm(np.array(vec1) - np.array(vec2))
 
-# 出席率計算ロジック (遅刻・早退は2/3点)
+# ★修正: 出席率計算ロジック (遅刻・早退は2/3点)
 def calculate_attendance_rate(student_id):
     s_info = execute_query("SELECT class_id, student_name, email FROM students WHERE student_id=%s", (student_id,), fetch=True)
     if not s_info or not s_info[0]['class_id']:
@@ -121,7 +121,7 @@ def calculate_attendance_rate(student_id):
     for r in stats_res:
         counts[r['status_id']] = r['cnt']
 
-    # 出席(1): 1点, 遅刻(2)/早退(4): 2/3点, 欠席(3): 0点
+    # 点数計算: 出席(1)=1点, 遅刻(2)/早退(4)=2/3点, 欠席(3)=0点
     attended_points = (counts[1] * 1.0) + ((counts[2] + counts[4]) * (2/3))
     
     rate = 0.0
@@ -152,6 +152,7 @@ def login():
         teacher = execute_query("SELECT teacher_id, is_admin FROM teachers WHERE teacher_id=%s AND password=%s", (u, p), fetch=True)
         if teacher:
             unread = execute_query("SELECT COUNT(*) as c FROM chat_messages WHERE receiver_id=%s AND is_read=0", (u,), fetch=True)[0]['c']
+            # 管理者なら role='admin'
             role = 'admin' if teacher[0].get('is_admin') == 1 else 'teacher'
             return jsonify({'success': True, 'role': role, 'user_id': u, 'unread_count': unread})
 
@@ -253,7 +254,7 @@ def check_in():
         d = request.json
         sid, desc, cid, koma, lat, lng = d.get('student_id'), d.get('descriptor'), d.get('course_id'), d.get('koma'), d.get('lat'), d.get('lng')
 
-        if not sid or not desc: return jsonify({'success': False, 'message': '認証データ不足'}), 400
+        if not sid or not desc: return jsonify({'success': False, 'message': 'データ不足'}), 400
         if not cid or not koma: return jsonify({'success': False, 'message': '授業選択不足'}), 400
         if lat is None: return jsonify({'success': False, 'message': '位置情報不足'}), 400
 
@@ -395,7 +396,7 @@ def get_student_list():
 @app.route(f'{API_BASE_URL}/add_student', methods=['POST'])
 def add_student():
     d = request.json
-    if execute_query("INSERT INTO students (student_id, student_name, class_id, gender, birthday, email) VALUES (%s,%s,%s,%s,%s,%s)", (d['student_id'], d['student_name'], d['class_id'], d['gender'], d['birthday'], d['email'])):
+    if execute_query("INSERT INTO students (student_id, student_name, class_id, gender, birthday, email) VALUES (%s,%s,%s,%s,%s,%s)", (d['student_id'], d['student_name'], d.get('class_id'), d.get('gender'), d.get('birthday'), d.get('email'))):
         execute_query("INSERT INTO student_auth (student_id, password) VALUES (%s,%s)", (d['student_id'], d['password']))
         return jsonify({'success': True})
     return jsonify({'success': False})

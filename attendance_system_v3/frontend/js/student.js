@@ -5,9 +5,9 @@ let chatInterval = null;
 let myChart = null; 
 let checkInInterval = null; 
 let requiredExpression = 'happy'; 
-let cachedLocation = null; // 位置情報キャッシュ {lat, lng, timestamp}
+let cachedLocation = null; // ★位置情報キャッシュ
 
-// ★設定: 位置情報の有効期限 (ミリ秒) -> ここでは10分 (10 * 60 * 1000)
+// ★設定: 位置情報の有効期限 (10分)
 const LOCATION_VALID_DURATION = 10 * 60 * 1000;
 
 const checkAuth = () => {
@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sid = sessionStorage.getItem('user_id');
     document.getElementById('studentId').textContent = sid;
     
-    // 起動時に位置情報をチェック
+    // ★起動時に位置情報をチェック (高速化)
     initLocationCheck();
 
     const unread = sessionStorage.getItem('unread_count');
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// 位置情報の事前チェック関数
+// ★追加: 位置情報の事前取得
 async function initLocationCheck() {
     if (!navigator.geolocation) {
         console.error("Geolocation not supported");
@@ -74,7 +74,6 @@ async function initLocationCheck() {
         const lng = pos.coords.longitude;
         
         try {
-            // サーバーで範囲チェック
             const res = await fetch(`${API_BASE_URL}/validate_location`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -83,23 +82,15 @@ async function initLocationCheck() {
             const d = await res.json();
             
             if (d.success && d.in_range) {
-                // ★変更: 時刻(timestamp)も一緒に保存
-                cachedLocation = { 
-                    lat: lat, 
-                    lng: lng,
-                    timestamp: Date.now() // 現在時刻を記録
-                };
+                // キャッシュに保存 (時刻付き)
+                cachedLocation = { lat: lat, lng: lng, timestamp: Date.now() };
                 console.log("Location Verified:", cachedLocation);
             } else {
                 console.warn("Location check failed:", d.message);
                 cachedLocation = null;
             }
-        } catch(e) {
-            console.error("Location check error:", e);
-        }
-    }, (err) => {
-        console.error("GPS Error:", err);
-    });
+        } catch(e) { console.error("Location check error:", e); }
+    }, (err) => { console.error("GPS Error:", err); });
 }
 
 function setupHamburgerMenu() {
@@ -260,6 +251,7 @@ function setupEvents(sid) {
         }
     };
 
+    // ★修正: 出席打刻 (キャッシュ利用 & 連打防止)
     document.getElementById('checkInButton').onclick = async () => {
         const btn = document.getElementById('checkInButton');
         const msg = document.getElementById('checkinMessage');
@@ -292,14 +284,9 @@ function setupEvents(sid) {
         if (timeDiff > LOCATION_VALID_DURATION) {
             msg.textContent = "⚠️ 位置情報の有効期限切れです。";
             alert("位置情報の取得から時間が経過しすぎています。\n再読み込みして、最新の位置情報を取得してください。");
-            
-            // 再取得を試みる
             cachedLocation = null;
             initLocationCheck();
-            
-            btn.disabled = false; 
-            btn.textContent = '出席する'; 
-            return;
+            btn.disabled = false; btn.textContent = '出席する'; return;
         }
 
         msg.textContent = "登録状況を確認中...";
@@ -320,7 +307,7 @@ function setupEvents(sid) {
             }
         } catch(e) { console.error("Duplicate check error:", e); }
 
-        // 3. 顔認証処理
+        // 4. 顔認証処理
         try {
             msg.textContent = "顔解析中...";
             const descriptor = await getFaceDescriptor('videoCheckin');
@@ -336,8 +323,7 @@ function setupEvents(sid) {
                     student_id: sid, 
                     descriptor: descriptor,
                     course_id: cid, koma: koma,
-                    lat: cachedLocation.lat, 
-                    lng: cachedLocation.lng  
+                    lat: cachedLocation.lat, lng: cachedLocation.lng  
                 })
             });
             const ret = await res.json();
@@ -382,6 +368,7 @@ function setupEvents(sid) {
         } catch(e) { console.error(e); alert("通信エラー"); }
     };
 
+    // ★修正: チャット連打防止
     document.getElementById('sendChatButton').onclick = async () => {
         const btn = document.getElementById('sendChatButton');
         const txt = document.getElementById('chatInput').value.trim();
@@ -565,7 +552,7 @@ async function loadTeacherList() {
     const d = await res.json();
     el.innerHTML = '';
     d.teachers.forEach(t => {
-        // 管理者(admin)は除外
+        // ★修正: 管理者(admin)は除外
         if (t.teacher_id === 'admin' || t.is_admin === 1) return;
         const o = document.createElement('option'); o.value=t.teacher_id; o.textContent=t.teacher_name; el.appendChild(o);
     });
