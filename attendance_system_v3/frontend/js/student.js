@@ -5,6 +5,10 @@ let chatInterval = null;
 let myChart = null; 
 let checkInInterval = null; 
 let requiredExpression = 'happy'; 
+let cachedLocation = null; // 位置情報キャッシュ {lat, lng, timestamp}
+
+// ★設定: 位置情報の有効期限 (ミリ秒) -> ここでは10分 (10 * 60 * 1000)
+const LOCATION_VALID_DURATION = 10 * 60 * 1000;
 
 const checkAuth = () => {
     const sid = sessionStorage.getItem('user_id');
@@ -23,6 +27,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sid = sessionStorage.getItem('user_id');
     document.getElementById('studentId').textContent = sid;
     
+    // 起動時に位置情報をチェック
+    initLocationCheck();
+
     const unread = sessionStorage.getItem('unread_count');
     if (unread && parseInt(unread) > 0) {
         alert(`🔔 新着メッセージが ${unread} 件あります`);
@@ -54,6 +61,46 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert("AIモデルの読み込みに失敗しました。ページの再読み込みを試してください。");
     }
 });
+
+// 位置情報の事前チェック関数
+async function initLocationCheck() {
+    if (!navigator.geolocation) {
+        console.error("Geolocation not supported");
+        return;
+    }
+    
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        
+        try {
+            // サーバーで範囲チェック
+            const res = await fetch(`${API_BASE_URL}/validate_location`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ lat: lat, lng: lng })
+            });
+            const d = await res.json();
+            
+            if (d.success && d.in_range) {
+                // ★変更: 時刻(timestamp)も一緒に保存
+                cachedLocation = { 
+                    lat: lat, 
+                    lng: lng,
+                    timestamp: Date.now() // 現在時刻を記録
+                };
+                console.log("Location Verified:", cachedLocation);
+            } else {
+                console.warn("Location check failed:", d.message);
+                cachedLocation = null;
+            }
+        } catch(e) {
+            console.error("Location check error:", e);
+        }
+    }, (err) => {
+        console.error("GPS Error:", err);
+    });
+}
 
 function setupHamburgerMenu() {
     const hamburger = document.getElementById('hamburgerMenu');
@@ -219,11 +266,41 @@ function setupEvents(sid) {
         const cid = document.getElementById('currentCourseId').value;
         const koma = document.getElementById('currentKomaId').value;
         
+        // 1. ボタン無効化 & 状態チェック
         msg.style.display = 'block';
         btn.disabled = true;
+        btn.textContent = '処理中...';
 
-        if (!cid) { msg.textContent = "⚠️ 現在の時間は授業が設定されていません"; btn.disabled = false; return; }
-        if (!koma) { msg.textContent = "⚠️ 現在は打刻可能な時間帯ではありません"; btn.disabled = false; return; }
+        if (!cid) { 
+            msg.textContent = "⚠️ 現在の時間は授業が設定されていません"; 
+            btn.disabled = false; btn.textContent = '出席する'; return; 
+        }
+        if (!koma) { 
+            msg.textContent = "⚠️ 現在は打刻可能な時間帯ではありません"; 
+            btn.disabled = false; btn.textContent = '出席する'; return; 
+        }
+
+        // 2. 位置情報の有無チェック
+        if (!cachedLocation) {
+            msg.textContent = "⚠️ 位置情報が取得できていません。";
+            alert("位置情報が確認できませんでした。\n学校の範囲内にいることを確認し、再読み込みしてください。");
+            btn.disabled = false; btn.textContent = '出席する'; return;
+        }
+
+        // ★追加: 位置情報の有効期限チェック (10分経過でアウト)
+        const timeDiff = Date.now() - cachedLocation.timestamp;
+        if (timeDiff > LOCATION_VALID_DURATION) {
+            msg.textContent = "⚠️ 位置情報の有効期限切れです。";
+            alert("位置情報の取得から時間が経過しすぎています。\n再読み込みして、最新の位置情報を取得してください。");
+            
+            // 再取得を試みる
+            cachedLocation = null;
+            initLocationCheck();
+            
+            btn.disabled = false; 
+            btn.textContent = '出席する'; 
+            return;
+        }
 
         msg.textContent = "登録状況を確認中...";
         try {
@@ -238,54 +315,44 @@ function setupEvents(sid) {
                     const courseName = duplicate.course_name || '不明な授業';
                     msg.textContent = `⚠️ このコマは既に「${statusText}」です`;
                     alert(`このコマ(${koma}限)は既に登録済みです。\n(${courseName} で ${statusText})`);
-                    btn.disabled = false;
-                    return; 
+                    btn.disabled = false; btn.textContent = '出席する'; return; 
                 }
             }
         } catch(e) { console.error("Duplicate check error:", e); }
 
-        msg.textContent = "位置情報取得中..."; 
-        if (!navigator.geolocation) { msg.textContent = "⚠️ この端末では位置情報が使えません"; btn.disabled = false; return; }
-
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            try {
-                msg.textContent = "顔解析中...";
-                const descriptor = await getFaceDescriptor('videoCheckin');
-                if (!descriptor) { 
-                    msg.textContent = "❌ 顔が見つかりません"; 
-                    alert("顔が見つかりません。カメラの正面に立ってください。");
-                    btn.disabled = false; 
-                    return; 
-                }
-
-                const res = await fetch(`${API_BASE_URL}/check_in`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        student_id: sid, descriptor: descriptor,
-                        course_id: cid, koma: koma,
-                        lat: pos.coords.latitude, lng: pos.coords.longitude
-                    })
-                });
-                const ret = await res.json();
-                
-                if (ret.success) {
-                    msg.textContent = `✅ ${ret.message}`;
-                    loadStudentStats();
-                } else {
-                    msg.textContent = `❌ ${ret.message}`;
-                }
-            } catch(e) { 
-                console.error(e); msg.textContent = "通信または処理エラー"; 
-            } finally {
-                btn.disabled = false;
+        // 3. 顔認証処理
+        try {
+            msg.textContent = "顔解析中...";
+            const descriptor = await getFaceDescriptor('videoCheckin');
+            if (!descriptor) { 
+                msg.textContent = "❌ 顔が見つかりません"; 
+                alert("顔が見つかりません。カメラの正面に立ってください。");
+                btn.disabled = false; btn.textContent = '出席する'; return; 
             }
-        }, (err) => { 
-            console.error(err);
-            let errMsg = "GPSエラー";
-            if (err.code === 1) errMsg = "⚠️ 位置情報の許可が必要です";
-            else if (err.code === 2) errMsg = "⚠️ 位置情報が取得できません";
-            msg.textContent = errMsg; btn.disabled = false; 
-        }, { enableHighAccuracy: false, timeout: 30000, maximumAge: 0 });
+
+            const res = await fetch(`${API_BASE_URL}/check_in`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    student_id: sid, 
+                    descriptor: descriptor,
+                    course_id: cid, koma: koma,
+                    lat: cachedLocation.lat, 
+                    lng: cachedLocation.lng  
+                })
+            });
+            const ret = await res.json();
+            
+            if (ret.success) {
+                msg.textContent = `✅ ${ret.message}`;
+                loadStudentStats();
+            } else {
+                msg.textContent = `❌ ${ret.message}`;
+            }
+        } catch(e) { 
+            console.error(e); msg.textContent = "通信または処理エラー"; 
+        } finally {
+            btn.disabled = false; btn.textContent = '出席する';
+        }
     };
 
     document.getElementById('submitAbsenceButton').onclick = async () => {
@@ -315,15 +382,13 @@ function setupEvents(sid) {
         } catch(e) { console.error(e); alert("通信エラー"); }
     };
 
-    // ★修正: チャット連打防止
     document.getElementById('sendChatButton').onclick = async () => {
         const btn = document.getElementById('sendChatButton');
         const txt = document.getElementById('chatInput').value.trim();
         const tid = document.getElementById('chatTeacherSelect').value;
-        
         if(!txt || !tid) return;
         
-        btn.disabled = true;
+        btn.disabled = true; 
         try {
             await fetch(`${API_BASE_URL}/chat/send`, {
                 method: 'POST', headers: {'Content-Type':'application/json'},
@@ -331,11 +396,7 @@ function setupEvents(sid) {
             });
             document.getElementById('chatInput').value = '';
             loadChatHistory();
-        } catch(e) { 
-            console.error(e); alert("送信エラー"); 
-        } finally { 
-            btn.disabled = false; 
-        }
+        } catch(e) { console.error(e); alert("送信エラー"); } finally { btn.disabled = false; }
     };
 
     document.getElementById('chatTeacherSelect').onchange = loadChatHistory;
@@ -504,7 +565,7 @@ async function loadTeacherList() {
     const d = await res.json();
     el.innerHTML = '';
     d.teachers.forEach(t => {
-        // ★修正: 管理者(admin)はリストから除外
+        // 管理者(admin)は除外
         if (t.teacher_id === 'admin' || t.is_admin === 1) return;
         const o = document.createElement('option'); o.value=t.teacher_id; o.textContent=t.teacher_name; el.appendChild(o);
     });
