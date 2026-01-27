@@ -16,6 +16,14 @@
         .btn-reset { background-color: #ffc107; color: black; }
         .btn-permission:hover { background-color: #138496; }
         .btn-reset:hover { background-color: #e0a800; }
+
+        /* ★追加: 記録なし（強調表示）用のスタイル */
+        .bg-norecord {
+            background-color: #343a40; /* 濃いグレー */
+            color: #fff;
+            font-weight: bold;
+            border: 2px solid #000; /* 枠線で強調 */
+        }
     </style>
 </head>
 <body>
@@ -163,7 +171,12 @@
         <p id="stModalInfo" style="font-weight:bold;"></p>
         <label>コマ: <select id="stModalKoma" style="width:100%; margin-bottom:10px;"></select></label>
         <label>授業: <select id="stModalCourse" style="width:100%; margin-bottom:10px;"></select></label>
-        <label>状態: <select id="stModalSelect" style="width:100%; margin-bottom:20px;"><option value="1">出席</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></label>
+        <label>状態: <select id="stModalSelect" style="width:100%; margin-bottom:20px;">
+            <option value="1">出席</option>
+            <option value="2">遅刻</option>
+            <option value="3">欠席</option>
+            <option value="4">早退</option>
+        </select></label>
         <div style="display:flex; justify-content:space-between;"><button id="stModalDelete" style="background:#dc3545; color:white;">🗑️ 削除</button><div><button onclick="document.getElementById('statusChangeModal').style.display='none'" style="background:#6c757d; margin-right:5px;">キャンセル</button><button id="stModalSave">保存</button></div></div>
     </div>
     

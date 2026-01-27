@@ -359,7 +359,14 @@ async function loadCalendar() {
 
             let b = '';
             recs.forEach(r => {
-                let c = r.status_id == 1 ? 'bg-present' : r.status_id == 3 ? 'bg-absent' : 'bg-late';
+                // ★修正: ステータスによる色分け (記録なし=5 を強調)
+                let c = '';
+                if (r.status_id == 1) c = 'bg-present';
+                else if (r.status_id == 2) c = 'bg-late';
+                else if (r.status_id == 3) c = 'bg-absent';
+                else if (r.status_id == 4) c = 'bg-late'; // 早退
+                else if (r.status_id == 5) c = 'bg-norecord'; // ★記録なし(強調)
+                
                 b += `<div class="mini-badge ${c}" onclick="openStModal(${sidEl.value},'',${r.course_id},${r.koma},'${dt}')">${r.koma}:${r.status_text}</div>`
             });
             h += `<div class="month-day">
@@ -566,7 +573,6 @@ window.openStudentForm = (id) => {
         document.getElementById('crudSid').disabled = false;
         document.getElementById('crudSid').value = '';
         document.getElementById('crudSPass').value = 'password';
-        // フォーム初期化
         document.getElementById('crudSName').value = '';
         document.getElementById('crudSGen').value = '設定しない';
         document.getElementById('crudSBirth').value = '';
@@ -580,7 +586,6 @@ window.saveStudent = async () => {
     let cls = document.getElementById('crudSClassSelect').value;
     if (cls === 'new') cls = document.getElementById('crudSClassInput').value;
 
-    // ★入力チェック (必須項目チェックと桁数チェック)
     if (!sid || !name || !cls || !pass || !birth || !email) return alert('入力不足です。全ての項目を入力してください。');
     if (!sid.match(/^\d{6}$/)) return alert('生徒IDは数字6桁で入力してください。');
 
@@ -635,7 +640,6 @@ window.resetPassword = async (sid) => {
 window.saveTeacher = async () => {
     const tid = document.getElementById('crudTid').value, tname = document.getElementById('crudTName').value, em = document.getElementById('crudTEmail').value, pw = document.getElementById('crudTPass').value;
     
-    // ★入力チェック
     if (!tid || !tname || !em || !pw) return alert('入力不足です。全ての項目を入力してください。');
     if (!tid.toUpperCase().match(/^T\d{5}$/)) return alert('教員IDは「T」で始まる数字5桁(例: T12345)で入力してください。');
 
