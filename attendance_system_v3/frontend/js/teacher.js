@@ -566,23 +566,27 @@ window.openStudentForm = (id) => {
         document.getElementById('crudSid').disabled = false;
         document.getElementById('crudSid').value = '';
         document.getElementById('crudSPass').value = 'password';
+        // フォーム初期化
+        document.getElementById('crudSName').value = '';
+        document.getElementById('crudSGen').value = '設定しない';
+        document.getElementById('crudSBirth').value = '';
+        document.getElementById('crudSEmail').value = '';
     }
 };
 
 window.saveStudent = async () => {
     const sid = document.getElementById('crudSid').value, name = document.getElementById('crudSName').value, pass = document.getElementById('crudSPass').value;
+    const gen = document.getElementById('crudSGen').value, birth = document.getElementById('crudSBirth').value, email = document.getElementById('crudSEmail').value;
     let cls = document.getElementById('crudSClassSelect').value;
     if (cls === 'new') cls = document.getElementById('crudSClassInput').value;
 
-    // ★入力チェック (生徒IDは数字6桁)
-    if (!sid || !name || !cls || !pass) return alert('入力不足です。全ての項目を入力してください。');
+    // ★入力チェック (必須項目チェックと桁数チェック)
+    if (!sid || !name || !cls || !pass || !birth || !email) return alert('入力不足です。全ての項目を入力してください。');
     if (!sid.match(/^\d{6}$/)) return alert('生徒IDは数字6桁で入力してください。');
 
     const body = {
         student_id: sid, student_name: name, class_id: cls,
-        gender: document.getElementById('crudSGen').value,
-        birthday: document.getElementById('crudSBirth').value,
-        email: document.getElementById('crudSEmail').value,
+        gender: gen, birthday: birth, email: email,
         password: pass
     };
     const url = document.getElementById('crudSid').disabled ? 'update_student' : 'add_student';
@@ -631,7 +635,7 @@ window.resetPassword = async (sid) => {
 window.saveTeacher = async () => {
     const tid = document.getElementById('crudTid').value, tname = document.getElementById('crudTName').value, em = document.getElementById('crudTEmail').value, pw = document.getElementById('crudTPass').value;
     
-    // ★入力チェック (教員IDはT+5桁)
+    // ★入力チェック
     if (!tid || !tname || !em || !pw) return alert('入力不足です。全ての項目を入力してください。');
     if (!tid.toUpperCase().match(/^T\d{5}$/)) return alert('教員IDは「T」で始まる数字5桁(例: T12345)で入力してください。');
 

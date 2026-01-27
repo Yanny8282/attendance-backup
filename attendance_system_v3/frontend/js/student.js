@@ -5,9 +5,9 @@ let chatInterval = null;
 let myChart = null; 
 let checkInInterval = null; 
 let requiredExpression = 'happy'; 
-let cachedLocation = null; // ★位置情報キャッシュ
+let cachedLocation = null; // 位置情報キャッシュ
 
-// ★設定: 位置情報の有効期限 (10分)
+// 位置情報の有効期限 (10分)
 const LOCATION_VALID_DURATION = 10 * 60 * 1000;
 
 const checkAuth = () => {
@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sid = sessionStorage.getItem('user_id');
     document.getElementById('studentId').textContent = sid;
     
-    // ★起動時に位置情報をチェック (高速化)
+    // 起動時に位置情報をチェック
     initLocationCheck();
 
     const unread = sessionStorage.getItem('unread_count');
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// ★追加: 位置情報の事前取得
+// 位置情報の事前チェック関数
 async function initLocationCheck() {
     if (!navigator.geolocation) {
         console.error("Geolocation not supported");
@@ -251,14 +251,13 @@ function setupEvents(sid) {
         }
     };
 
-    // ★修正: 出席打刻 (キャッシュ利用 & 連打防止)
+    // 出席打刻 (キャッシュ利用 & 連打防止 & 詳細メッセージ)
     document.getElementById('checkInButton').onclick = async () => {
         const btn = document.getElementById('checkInButton');
         const msg = document.getElementById('checkinMessage');
         const cid = document.getElementById('currentCourseId').value;
         const koma = document.getElementById('currentKomaId').value;
         
-        // 1. ボタン無効化 & 状態チェック
         msg.style.display = 'block';
         btn.disabled = true;
         btn.textContent = '処理中...';
@@ -272,14 +271,12 @@ function setupEvents(sid) {
             btn.disabled = false; btn.textContent = '出席する'; return; 
         }
 
-        // 2. 位置情報の有無チェック
         if (!cachedLocation) {
             msg.textContent = "⚠️ 位置情報が取得できていません。";
             alert("位置情報が確認できませんでした。\n学校の範囲内にいることを確認し、再読み込みしてください。");
             btn.disabled = false; btn.textContent = '出席する'; return;
         }
 
-        // ★追加: 位置情報の有効期限チェック (10分経過でアウト)
         const timeDiff = Date.now() - cachedLocation.timestamp;
         if (timeDiff > LOCATION_VALID_DURATION) {
             msg.textContent = "⚠️ 位置情報の有効期限切れです。";
@@ -307,7 +304,6 @@ function setupEvents(sid) {
             }
         } catch(e) { console.error("Duplicate check error:", e); }
 
-        // 4. 顔認証処理
         try {
             msg.textContent = "顔解析中...";
             const descriptor = await getFaceDescriptor('videoCheckin');
@@ -320,8 +316,7 @@ function setupEvents(sid) {
             const res = await fetch(`${API_BASE_URL}/check_in`, {
                 method: 'POST', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    student_id: sid, 
-                    descriptor: descriptor,
+                    student_id: sid, descriptor: descriptor,
                     course_id: cid, koma: koma,
                     lat: cachedLocation.lat, lng: cachedLocation.lng  
                 })
@@ -330,6 +325,7 @@ function setupEvents(sid) {
             
             if (ret.success) {
                 msg.textContent = `✅ ${ret.message}`;
+                alert(ret.message);
                 loadStudentStats();
             } else {
                 msg.textContent = `❌ ${ret.message}`;
@@ -341,7 +337,9 @@ function setupEvents(sid) {
         }
     };
 
+    // ★修正: 欠席届送信 (連打防止)
     document.getElementById('submitAbsenceButton').onclick = async () => {
+        const btn = document.getElementById('submitAbsenceButton'); // ボタン要素取得
         const date = document.getElementById('absenceDate').value;
         const reason = document.getElementById('absenceReason').value;
         const selects = document.querySelectorAll('.absence-status-select');
@@ -351,6 +349,10 @@ function setupEvents(sid) {
         if(!date) { alert("日付を選択してください"); return; }
         if(reports.length === 0) { alert("連絡するコマの状態を1つ以上選択してください"); return; }
         if(!reason) { alert("理由を入力してください"); return; }
+
+        // ★ボタン無効化
+        btn.disabled = true;
+        btn.textContent = '送信中...';
 
         try {
             const res = await fetch(`${API_BASE_URL}/report_absence`, {
@@ -365,10 +367,16 @@ function setupEvents(sid) {
             } else {
                 alert("送信失敗: " + ret.message);
             }
-        } catch(e) { console.error(e); alert("通信エラー"); }
+        } catch(e) { 
+            console.error(e); alert("通信エラー"); 
+        } finally {
+            // ★ボタン復帰
+            btn.disabled = false;
+            btn.textContent = '送信する';
+        }
     };
 
-    // ★修正: チャット連打防止
+    // チャット連打防止
     document.getElementById('sendChatButton').onclick = async () => {
         const btn = document.getElementById('sendChatButton');
         const txt = document.getElementById('chatInput').value.trim();
@@ -552,7 +560,7 @@ async function loadTeacherList() {
     const d = await res.json();
     el.innerHTML = '';
     d.teachers.forEach(t => {
-        // ★修正: 管理者(admin)は除外
+        // 管理者(admin)は除外
         if (t.teacher_id === 'admin' || t.is_admin === 1) return;
         const o = document.createElement('option'); o.value=t.teacher_id; o.textContent=t.teacher_name; el.appendChild(o);
     });
