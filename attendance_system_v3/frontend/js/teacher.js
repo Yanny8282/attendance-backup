@@ -3,7 +3,7 @@ let courses = [], komas = [], students = [], teachers = [], schSel = [], chatTim
 let editStData = null, editSchData = null, allClassIds = [];
 
 // ==========================================
-// ▼ 認証チェック関数 (修正済: adminも許可)
+// ▼ 認証チェック関数
 // ==========================================
 const checkAuth = () => {
     const tid = sessionStorage.getItem('user_id');
@@ -36,26 +36,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         const tid = sessionStorage.getItem('user_id');
         const elId = document.getElementById('teacherId');
-        if (elId) elId.textContent = tid;
+        if(elId) elId.textContent = tid;
 
         const d = new Date();
         const today = d.toISOString().split('T')[0];
         const ym = `${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}`;
 
         const elDate = document.getElementById('realtimeDate');
-        if (elDate) elDate.value = today;
+        if(elDate) elDate.value = today;
 
         const elMonth = document.getElementById('scheduleMonthInput');
-        if (elMonth) elMonth.value = ym;
+        if(elMonth) elMonth.value = ym;
 
         const elCsv = document.getElementById('csvMonthInput');
-        if (elCsv) elCsv.value = ym;
+        if(elCsv) elCsv.value = ym;
 
         const elBase = document.getElementById('calBaseDate');
-        if (elBase) elBase.value = today;
+        if(elBase) elBase.value = today;
 
         const elAbsence = document.getElementById('absenceDateFilter');
-        if (elAbsence) elAbsence.value = today;
+        if(elAbsence) elAbsence.value = today;
 
         setupEvents();
 
@@ -90,7 +90,6 @@ async function initData() {
         const classList = d2.classes || [];
         allClassIds = classList.map(c => c.class_id);
 
-        // プルダウン生成 (丁寧に記述)
         const setOptions = (id, list, k, v, emp=false) => {
             const el = document.getElementById(id); 
             if (!el) return;
@@ -112,8 +111,6 @@ async function initData() {
         const setClassOptions = (id) => {
             const el = document.getElementById(id);
             if (!el) return;
-            // 既存の選択肢を保持したい場合は innerHTML='' しない
-            // el.innerHTML = '<option value="all">全クラス</option>'; 
             classList.forEach(c => {
                 if (!el.querySelector(`option[value="${c.class_id}"]`)) {
                     const o = document.createElement('option');
@@ -129,7 +126,6 @@ async function initData() {
         const schEl = document.getElementById('scheduleClassSelect');
         if (schEl && schEl.options.length > 0) schEl.value = schEl.options[0].value;
 
-        // 現在時刻からコマ判定
         const h = new Date().getHours();
         const m = new Date().getMinutes();
         const mm = h * 60 + m;
@@ -158,7 +154,6 @@ function setupEvents() {
         };
     }
 
-    // タブ切り替え
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
@@ -179,16 +174,15 @@ function setupEvents() {
         });
     });
 
-    // イベント割り当て (短縮形を使わず記述)
-    const realtimeRef = document.getElementById('refreshRealtime');
-    if (realtimeRef) realtimeRef.onclick = loadRealtime;
+    const bind = (id, func) => { 
+        const el=document.getElementById(id); 
+        if(el) el.onclick=func; 
+    };
 
-    const schApply = document.getElementById('schMultiApplyBtn');
-    if (schApply) schApply.onclick = applyMultiSch;
-
-    const schSave = document.getElementById('schModalSave');
-    if (schSave) schSave.onclick = saveSingleSch;
-
+    bind('refreshRealtime', loadRealtime);
+    bind('schMultiApplyBtn', applyMultiSch);
+    bind('schModalSave', saveSingleSch);
+    
     const addCourse = document.getElementById('addCourseMasterBtn');
     if (addCourse) {
         addCourse.onclick = async () => {
@@ -203,31 +197,17 @@ function setupEvents() {
         };
     }
 
-    const calBtn = document.getElementById('showCalendarBtn');
-    if (calBtn) calBtn.onclick = loadCalendar;
+    bind('showCalendarBtn', loadCalendar);
+    bind('stModalSave', saveStatus);
+    bind('stModalDelete', deleteStatus); // 削除ボタン
+    bind('teacherSendChatButton', sendChat);
+    bind('broadcastChatButton', openBroadcast);
+    bind('submitBroadcast', sendBroadcast);
+    bind('refreshAbsenceReports', loadAbsence);
 
-    const stSave = document.getElementById('stModalSave');
-    if (stSave) stSave.onclick = saveStatus;
-
-    const stDel = document.getElementById('stModalDelete');
-    if (stDel) stDel.onclick = deleteStatus;
-
-    const chatSend = document.getElementById('teacherSendChatButton');
-    if (chatSend) chatSend.onclick = sendChat;
-
-    const bcOpen = document.getElementById('broadcastChatButton');
-    if (bcOpen) bcOpen.onclick = openBroadcast;
-
-    const bcSend = document.getElementById('submitBroadcast');
-    if (bcSend) bcSend.onclick = sendBroadcast;
-
-    const abRef = document.getElementById('refreshAbsenceReports');
-    if (abRef) abRef.onclick = loadAbsence;
-
-    // プルダウン変更イベント
     const sCls = document.getElementById('scheduleClassSelect');
     if (sCls) sCls.onchange = loadSchedule;
-
+    
     const sMonth = document.getElementById('scheduleMonthInput');
     if (sMonth) sMonth.onchange = loadSchedule;
 
@@ -239,7 +219,7 @@ function setupEvents() {
             loadSchedule();
         };
     });
-
+    
     const calF = document.getElementById('calClassFilter');
     if (calF) calF.onchange = loadCalStudents;
 
@@ -251,7 +231,7 @@ function setupEvents() {
 
     const chatS = document.getElementById('chatStudentSelect');
     if (chatS) chatS.onchange = loadChatHist;
-
+    
     const crudSel = document.getElementById('crudSClassSelect');
     if (crudSel) {
         crudSel.onchange = () => {
@@ -400,7 +380,6 @@ async function loadCalendar() {
     }
 }
 
-// ★修正: 削除ボタンの表示制御
 window.openStModal = (sid, n, cid, k, d) => {
     editStData = { sid, date: d };
     const info = document.getElementById('stModalInfo');
@@ -412,7 +391,6 @@ window.openStModal = (sid, n, cid, k, d) => {
     const cc = document.getElementById('stModalCourse');
     if (cc) cc.value = cid || (courses[0] ? courses[0].course_id : 0);
 
-    // ★新規(k=0)なら削除ボタンを消す
     const delBtn = document.getElementById('stModalDelete');
     if (delBtn) {
         delBtn.style.display = (k && k !== 0) ? 'block' : 'none';
@@ -596,7 +574,9 @@ window.saveStudent = async () => {
     let cls = document.getElementById('crudSClassSelect').value;
     if (cls === 'new') cls = document.getElementById('crudSClassInput').value;
 
-    if (!sid || !name || !cls || !pass) return alert('入力不足');
+    // ★入力チェック (生徒IDは数字6桁)
+    if (!sid || !name || !cls || !pass) return alert('入力不足です。全ての項目を入力してください。');
+    if (!sid.match(/^\d{6}$/)) return alert('生徒IDは数字6桁で入力してください。');
 
     const body = {
         student_id: sid, student_name: name, class_id: cls,
@@ -608,7 +588,7 @@ window.saveStudent = async () => {
     const url = document.getElementById('crudSid').disabled ? 'update_student' : 'add_student';
     try {
         const res = await (await fetch(`${API_BASE_URL}/${url}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
-        if (res.success) { alert('保存しました'); location.reload(); } else alert('エラー');
+        if (res.success) { alert('保存しました'); location.reload(); } else alert('エラー: ' + res.message);
     } catch (e) { alert('エラー: ' + e); }
 };
 
@@ -650,11 +630,13 @@ window.resetPassword = async (sid) => {
 // ==========================================
 window.saveTeacher = async () => {
     const tid = document.getElementById('crudTid').value, tname = document.getElementById('crudTName').value, em = document.getElementById('crudTEmail').value, pw = document.getElementById('crudTPass').value;
-    if (!tid || !tname || !em || !pw) return alert('入力不足');
+    
+    // ★入力チェック (教員IDはT+5桁)
+    if (!tid || !tname || !em || !pw) return alert('入力不足です。全ての項目を入力してください。');
+    if (!tid.toUpperCase().match(/^T\d{5}$/)) return alert('教員IDは「T」で始まる数字5桁(例: T12345)で入力してください。');
+
     const cls = []; document.querySelectorAll('#crudTClassCheckboxes input:checked').forEach(c => cls.push(parseInt(c.value)));
     const url = document.getElementById('crudTid').disabled ? 'update_teacher' : 'add_teacher';
-    
-    // ★権限チェック用ID送信
     const requester = sessionStorage.getItem('user_id');
     const res = await (await fetch(`${API_BASE_URL}/${url}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -715,7 +697,7 @@ async function loadChatHist() {
     w.scrollTop = w.scrollHeight;
 }
 
-// ★修正: 連打防止付き
+// 連打防止付きチャット送信
 async function sendChat() {
     const txt = document.getElementById('teacherChatInput').value;
     const sid = document.getElementById('chatStudentSelect').value;
@@ -723,11 +705,11 @@ async function sendChat() {
     
     if (!txt || !sid) return;
     
-    btn.disabled = true; // 無効化
+    btn.disabled = true;
     await fetch(`${API_BASE_URL}/chat/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_id: sessionStorage.getItem('user_id'), receiver_id: sid, content: txt }) });
     document.getElementById('teacherChatInput').value = '';
     loadChatHist();
-    btn.disabled = false; // 復帰
+    btn.disabled = false;
 }
 
 window.openBroadcast = () => {
@@ -743,12 +725,12 @@ async function sendBroadcast() {
     
     if (!ids.length || !txt) return alert('入力不足');
     
-    btn.disabled = true; // 無効化
+    btn.disabled = true;
     const res = await (await fetch(`${API_BASE_URL}/chat/broadcast`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_id: sessionStorage.getItem('user_id'), class_ids: ids, content: txt }) })).json();
     alert(`${res.count}件送信完了`);
     document.getElementById('broadcastModal').style.display = 'none';
     loadChatHist();
-    btn.disabled = false; // 復帰
+    btn.disabled = false;
 }
 
 async function loadAbsence() {
