@@ -6,7 +6,7 @@ let myChart = null;
 let checkInInterval = null; 
 let cachedLocation = null;
 
-// ★「口開け」判定用変数
+// ★「口開け」判定用変数 (瞬きから変更)
 let mouthState = 0; // 0:口閉じ待ち, 1:口開け待ち, 2:完了
 // 口の開き具合の基準値 (0.0=閉じ, 1.0=全開)
 const THRESHOLD_MOUTH_CLOSED = 0.2; // これ以下なら「閉じている」
@@ -125,7 +125,7 @@ function setupTabs() {
             if(btn.dataset.tab === 'checkin') { 
                 startCamera('videoCheckin'); 
                 autoSelectCourse(); 
-                // ★口開けチェック開始
+                // ★ここが「口開け」に変わります
                 mouthState = 0;
                 startMouthCheck(); 
             }
@@ -173,23 +173,18 @@ async function getFaceDescriptor(vidId) {
 function getMAR(mouth) {
     // mouthは20点の配列
     // 0-11: 外側の唇, 12-19: 内側の唇
-    // face-api.jsのlandmarks.getMouth()の仕様に基づく
-    
-    // 内側の唇の上端(14)と下端(18)の距離（縦）
     const p14 = mouth[14]; // top inner
     const p18 = mouth[18]; // bottom inner
     const v = Math.hypot(p14.x - p18.x, p14.y - p18.y);
 
-    // 口角の左(0)と右(6)の距離（横）
     const p0 = mouth[0];   // left corner
     const p6 = mouth[6];   // right corner
     const h = Math.hypot(p0.x - p6.x, p0.y - p6.y);
 
-    // 縦 / 横 の比率
     return v / h;
 }
 
-// ★大幅修正: 「口開け」検知ロジック
+// ★大幅修正: 「口開け」検知ロジック (HTML変更なし)
 function startMouthCheck() {
     const video = document.getElementById('videoCheckin');
     const msgEl = document.getElementById('checkinMessage'); 
@@ -198,6 +193,7 @@ function startMouthCheck() {
     mouthState = 0; 
     btn.disabled = true;
     
+    // HTMLを変更せず、既存のメッセージエリアを活用
     if (msgEl) {
         msgEl.style.display = 'block';
         msgEl.style.color = '#333';
@@ -214,10 +210,8 @@ function startMouthCheck() {
         if (detection) {
             const landmarks = detection.landmarks;
             const mouth = landmarks.getMouth();
-            const mar = getMAR(mouth); // 口の開き具合 (0.0 ~ 1.0程度)
-
-            // 数値表示（デバッグ用: 慣れたら消してもOK）
-            const valStr = mar.toFixed(2);
+            const mar = getMAR(mouth); // 口の開き具合
+            const valStr = mar.toFixed(2); // 数値表示用
 
             // ▼ Step 1: まず口を閉じているか確認
             if (mouthState === 0) {
@@ -246,7 +240,7 @@ function startMouthCheck() {
             // ▼ Step 3: 完了
             else if (mouthState === 2) {
                 if(msgEl) {
-                    msgEl.textContent = "✅ 確認できました！出席ボタンを押してください";
+                    msgEl.textContent = "✅ 生体確認OK！出席ボタンを押してください";
                     msgEl.style.color = "green";
                 }
                 
