@@ -198,12 +198,12 @@ function startBlinkCheck() {
     const challengeBox = document.getElementById('livenessChallengeBox');
     const instruction = document.getElementById('livenessInstruction');
 
-    challengeBox.style.display = 'block';
+    if(challengeBox) challengeBox.style.display = 'block';
     
     // 初期化
     blinkState = 0; 
     btn.disabled = true;
-    msgEl.textContent = "";
+    if(msgEl) msgEl.textContent = "";
 
     if(checkInInterval) clearInterval(checkInInterval);
 
@@ -225,9 +225,9 @@ function startBlinkCheck() {
 
             // ▼ ステップ0: 目が開いているか確認
             if (blinkState === 0) {
-                instruction.textContent = "👁️ カメラを見てください（パチっと瞬きして！）";
-                instruction.style.color = "#333";
-                msgEl.textContent = "待機中...";
+                if(instruction) instruction.textContent = "👁️ カメラを見てください（パチっと瞬きして！）";
+                if(instruction) instruction.style.color = "#333";
+                if(msgEl) msgEl.textContent = "待機中...";
                 
                 // 普通に目が開いている(0.3以上くらい)
                 if (avgEAR > BLINK_THRESHOLD + 0.05) {
@@ -243,7 +243,7 @@ function startBlinkCheck() {
                 // 目が閉じた！ (EARが閾値を下回る)
                 if (avgEAR < BLINK_THRESHOLD) {
                     blinkState = 2; // 閉じたことを検知
-                    msgEl.textContent = "閉じた！";
+                    if(msgEl) msgEl.textContent = "閉じた！";
                 }
             }
 
@@ -259,10 +259,10 @@ function startBlinkCheck() {
 
             // ▼ 完了
             else if (blinkState === 3) {
-                instruction.textContent = "✅ 生体確認OK！出席ボタンを押してください";
-                instruction.style.color = "green";
-                msgEl.textContent = "認証成功";
-                msgEl.style.color = "green";
+                if(instruction) instruction.textContent = "✅ 生体確認OK！出席ボタンを押してください";
+                if(instruction) instruction.style.color = "green";
+                if(msgEl) msgEl.textContent = "認証成功";
+                if(msgEl) msgEl.style.color = "green";
 
                 if (btn.disabled) {
                     const koma = document.getElementById('currentKomaId').value;
@@ -271,8 +271,8 @@ function startBlinkCheck() {
             }
 
         } else {
-            msgEl.textContent = "❌ 顔が見つかりません";
-            msgEl.style.color = "red";
+            if(msgEl) msgEl.textContent = "❌ 顔が見つかりません";
+            if(msgEl) msgEl.style.color = "red";
             btn.disabled = true;
             blinkState = 0; // 顔を見失ったらリセット
         }
