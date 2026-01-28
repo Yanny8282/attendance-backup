@@ -6,11 +6,12 @@ let myChart = null;
 let checkInInterval = null; 
 let cachedLocation = null;
 
-// ★「口開け」判定用変数 (瞬きから変更)
-let mouthState = 0; // 0:口閉じ待ち, 1:口開け待ち, 2:完了
-// 口の開き具合の基準値 (0.0=閉じ, 1.0=全開)
-const THRESHOLD_MOUTH_CLOSED = 0.2; // これ以下なら「閉じている」
-const THRESHOLD_MOUTH_OPEN = 0.5;   // これ以上なら「開いている」
+// ★「口開け」動作判定用
+let mouthState = 0; // 0:口閉じ確認, 1:口開け確認, 2:完了
+
+// 口の開き具合(MAR)の基準値
+const THRESHOLD_MOUTH_CLOSED = 0.15; 
+const THRESHOLD_MOUTH_OPEN = 0.45;   
 
 // 位置情報の有効期限 (10分)
 const LOCATION_VALID_DURATION = 10 * 60 * 1000;
@@ -124,10 +125,10 @@ function setupTabs() {
 
             if(btn.dataset.tab === 'checkin') { 
                 startCamera('videoCheckin'); 
+                
+                // ★修正: ここで直接 startMouthCheck を呼ばず、
+                // autoSelectCourse（状況判断）に任せるように変更
                 autoSelectCourse(); 
-                // ★ここが「口開け」に変わります
-                mouthState = 0;
-                startMouthCheck(); 
             }
             if(btn.dataset.tab === 'register-face') { startCamera('videoRegister'); }
             if(btn.dataset.tab === 'chat') { loadTeacherList(); startChatPolling(); }
@@ -169,22 +170,102 @@ async function getFaceDescriptor(vidId) {
     return Array.from(detection.descriptor); 
 }
 
-// ★追加: 口の開き具合(MAR)を計算する関数
 function getMAR(mouth) {
-    // mouthは20点の配列
-    // 0-11: 外側の唇, 12-19: 内側の唇
-    const p14 = mouth[14]; // top inner
-    const p18 = mouth[18]; // bottom inner
+    const p14 = mouth[14]; 
+    const p18 = mouth[18]; 
     const v = Math.hypot(p14.x - p18.x, p14.y - p18.y);
-
-    const p0 = mouth[0];   // left corner
-    const p6 = mouth[6];   // right corner
+    const p0 = mouth[0];   
+    const p6 = mouth[6];   
     const h = Math.hypot(p0.x - p6.x, p0.y - p6.y);
-
     return v / h;
 }
 
-// ★大幅修正: 「口開け」検知ロジック (HTML変更なし)
+// ★修正: 重複チェックを行い、未登録の場合のみAI判定を開始する
+async function autoSelectCourse() {
+    if(!myClassId) return;
+    const sid = sessionStorage.getItem('user_id');
+
+    // UI初期化
+    const btn = document.getElementById('checkInButton');
+    const msgEl = document.getElementById('checkinMessage');
+    if(msgEl) msgEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = '確認中...';
+    btn.style.backgroundColor = ""; // 色リセット
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/get_today_schedule?class_id=${myClassId}`);
+        const d = await res.json();
+        const now = new Date();
+        const min = now.getHours() * 60 + now.getMinutes();
+        let tk = 0;
+        
+        if (min >= 545 && min < 645) tk = 1;
+        else if (min >= 655 && min < 750) tk = 2;
+        else if (min >= 805 && min < 900) tk = 3;
+        else if (min >= 910 && min < 1005) tk = 4;
+        
+        const info = document.getElementById('autoSelectInfo');
+        const displayKoma = document.getElementById('komaDisplayCheckin');
+        const hiddenKoma = document.getElementById('currentKomaId');
+        const displayCourse = document.getElementById('courseDisplayCheckin');
+        const hiddenCourse = document.getElementById('currentCourseId');
+        
+        if (tk > 0) {
+            const item = d.schedule.find(s => s.koma === tk);
+            displayKoma.value = tk + '限'; hiddenKoma.value = tk;
+            
+            if (item) {
+                hiddenCourse.value = item.course_id; 
+                displayCourse.value = item.course_name;
+                info.textContent = `📅 現在: ${tk}限 ${item.course_name}`;
+
+                // ★追加: 既に登録済みかチェック
+                const today = new Date().toISOString().split('T')[0];
+                const recRes = await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${today}&end_date=${today}`);
+                const recData = await recRes.json();
+                
+                let isAlreadyDone = false;
+                if (recData.success) {
+                    const done = recData.records.find(r => r.koma == tk);
+                    if (done) {
+                        isAlreadyDone = true;
+                        // 既に記録がある場合 -> ボタン無効化 & メッセージ表示
+                        btn.disabled = true;
+                        btn.textContent = `登録済 (${done.status_text})`;
+                        btn.style.backgroundColor = "#6c757d"; // グレーアウト
+                        
+                        if(msgEl) {
+                            msgEl.style.display = 'block';
+                            msgEl.style.color = '#333';
+                            msgEl.innerHTML = `✅ このコマは既に <b>${done.status_text}</b> で登録されています。<br>（${done.course_name}）`;
+                        }
+                        
+                        // AIチェックは止める
+                        if(checkInInterval) clearInterval(checkInInterval);
+                    }
+                }
+
+                // 未登録の場合のみ、AIチェック(口開け判定)を開始
+                if (!isAlreadyDone) {
+                     btn.textContent = '出席する'; // ボタン名は戻すがdisabledのまま
+                     mouthState = 0;
+                     startMouthCheck(); 
+                }
+
+            } else {
+                hiddenCourse.value = ''; displayCourse.value = '(授業なし)';
+                info.textContent = `⚠️ ${tk}限 授業なし`;
+                btn.textContent = '授業なし';
+            }
+        } else {
+            displayKoma.value = '-'; hiddenKoma.value = ''; displayCourse.value = '-'; hiddenCourse.value = '';
+            info.textContent = "⚠️ 現在は打刻時間外です";
+            btn.textContent = '時間外';
+        }
+    } catch(e) { console.error(e); }
+}
+
 function startMouthCheck() {
     const video = document.getElementById('videoCheckin');
     const msgEl = document.getElementById('checkinMessage'); 
@@ -193,7 +274,6 @@ function startMouthCheck() {
     mouthState = 0; 
     btn.disabled = true;
     
-    // HTMLを変更せず、既存のメッセージエリアを活用
     if (msgEl) {
         msgEl.style.display = 'block';
         msgEl.style.color = '#333';
@@ -210,40 +290,32 @@ function startMouthCheck() {
         if (detection) {
             const landmarks = detection.landmarks;
             const mouth = landmarks.getMouth();
-            const mar = getMAR(mouth); // 口の開き具合
-            const valStr = mar.toFixed(2); // 数値表示用
+            const mar = getMAR(mouth); 
+            const valStr = mar.toFixed(2);
 
-            // ▼ Step 1: まず口を閉じているか確認
             if (mouthState === 0) {
                 if(msgEl) {
-                    msgEl.textContent = `😐 口を閉じてください (現在: ${valStr})`;
+                    msgEl.textContent = `😐 まず口を閉じてください (現在: ${valStr})`;
                     msgEl.style.color = "#333";
                 }
-                
-                // 基準値より小さい＝閉じている
                 if (mar < THRESHOLD_MOUTH_CLOSED) {
                     mouthState = 1;
                 }
             }
-            // ▼ Step 2: 口を大きく開ける動作を待つ
             else if (mouthState === 1) {
                 if(msgEl) {
-                    msgEl.textContent = `😮 口を大きく「あー」と開けて！ (現在: ${valStr})`;
-                    msgEl.style.color = "#e83e8c"; // ピンクで強調
+                    msgEl.textContent = `😮 次に口を「あー」と開けて！ (現在: ${valStr})`;
+                    msgEl.style.color = "#e83e8c";
                 }
-
-                // 基準値より大きい＝開いている
                 if (mar > THRESHOLD_MOUTH_OPEN) {
-                    mouthState = 2; // 完了
+                    mouthState = 2; 
                 }
             }
-            // ▼ Step 3: 完了
             else if (mouthState === 2) {
                 if(msgEl) {
                     msgEl.textContent = "✅ 生体確認OK！出席ボタンを押してください";
                     msgEl.style.color = "green";
                 }
-                
                 if (btn.disabled) {
                     const koma = document.getElementById('currentKomaId').value;
                     if (koma) btn.disabled = false;
@@ -256,9 +328,9 @@ function startMouthCheck() {
                 msgEl.style.color = "red";
             }
             btn.disabled = true;
-            mouthState = 0; // 見失ったらリセット
+            mouthState = 0; 
         }
-    }, 200); // 0.2秒間隔でチェック
+    }, 200); 
 }
 
 function setupEvents(sid) {
@@ -334,6 +406,7 @@ function setupEvents(sid) {
         }
 
         if(msg) msg.textContent = "登録状況を確認中...";
+        // ※念のためここでも重複チェックは残しておきます（二重防止）
         try {
             const today = new Date().toISOString().split('T')[0];
             const checkRes = await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${today}&end_date=${today}`);
@@ -374,18 +447,21 @@ function setupEvents(sid) {
                 msg.textContent = `✅ ${ret.message}`;
                 alert(ret.message);
                 loadStudentStats();
-                mouthState = 0; // 成功したらリセット
+                // 成功後はチェック停止してボタンをロックする
+                if(checkInInterval) clearInterval(checkInInterval);
+                btn.disabled = true;
+                btn.textContent = '登録完了';
+                btn.style.backgroundColor = "#28a745";
             } else {
                 msg.textContent = `❌ ${ret.message}`;
+                // 失敗時はボタンを戻す
+                btn.disabled = false;
+                btn.textContent = '出席する';
             }
         } catch(e) { 
             console.error(e); msg.textContent = "通信または処理エラー"; 
-        } finally {
-            if (mouthState === 2) {
-                btn.disabled = false; 
-            }
-            btn.textContent = '出席する';
-        }
+            btn.disabled = false; btn.textContent = '出席する';
+        } 
     };
 
     document.getElementById('submitAbsenceButton').onclick = async () => {
@@ -461,45 +537,6 @@ async function loadStudentInfo(id) {
 async function initializeDropdowns() {
     try {
         document.getElementById('absenceDate').value = new Date().toISOString().split('T')[0];
-    } catch(e) {}
-}
-
-async function autoSelectCourse() {
-    if(!myClassId) return;
-    try {
-        const res = await fetch(`${API_BASE_URL}/get_today_schedule?class_id=${myClassId}`);
-        const d = await res.json();
-        const now = new Date();
-        const min = now.getHours() * 60 + now.getMinutes();
-        let tk = 0;
-        
-        if (min >= 545 && min < 645) tk = 1;
-        else if (min >= 655 && min < 750) tk = 2;
-        else if (min >= 805 && min < 900) tk = 3;
-        else if (min >= 910 && min < 1005) tk = 4;
-        
-        const info = document.getElementById('autoSelectInfo');
-        const displayKoma = document.getElementById('komaDisplayCheckin');
-        const hiddenKoma = document.getElementById('currentKomaId');
-        const displayCourse = document.getElementById('courseDisplayCheckin');
-        const hiddenCourse = document.getElementById('currentCourseId');
-        
-        if (tk > 0) {
-            const item = d.schedule.find(s => s.koma === tk);
-            displayKoma.value = tk + '限'; hiddenKoma.value = tk;
-            if (item) {
-                hiddenCourse.value = item.course_id; displayCourse.value = item.course_name;
-                info.textContent = `📅 現在: ${tk}限 ${item.course_name}`;
-            } else {
-                hiddenCourse.value = ''; displayCourse.value = '(授業なし)';
-                info.textContent = `⚠️ ${tk}限 授業なし`;
-                document.getElementById('checkInButton').disabled = true;
-            }
-        } else {
-            displayKoma.value = '-'; hiddenKoma.value = ''; displayCourse.value = '-'; hiddenCourse.value = '';
-            info.textContent = "⚠️ 現在は打刻時間外です";
-            document.getElementById('checkInButton').disabled = true;
-        }
     } catch(e) {}
 }
 
