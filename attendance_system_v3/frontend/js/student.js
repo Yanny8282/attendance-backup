@@ -4,8 +4,11 @@ let myClassId = null;
 let chatInterval = null;
 let myChart = null; 
 let checkInInterval = null; 
-let requiredExpression = 'happy'; 
-let cachedLocation = null; // 位置情報キャッシュ
+let cachedLocation = null;
+
+// ★瞬き判定用変数
+let blinkState = 0; // 0:初期(開眼待ち), 1:閉眼検知, 2:再開眼(完了)
+const BLINK_THRESHOLD = 0.25; // この値を下回ると「目をつぶった」と判定
 
 // 位置情報の有効期限 (10分)
 const LOCATION_VALID_DURATION = 10 * 60 * 1000;
@@ -27,7 +30,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sid = sessionStorage.getItem('user_id');
     document.getElementById('studentId').textContent = sid;
     
-    // 起動時に位置情報をチェック
     initLocationCheck();
 
     const unread = sessionStorage.getItem('unread_count');
@@ -54,6 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await faceapi.nets.ssdMobilenetv1.loadFromUri('../models');
         await faceapi.nets.faceLandmark68Net.loadFromUri('../models');
         await faceapi.nets.faceRecognitionNet.loadFromUri('../models');
+        // 表情モデルは不要になりますが、エラー防止のため残しておいてもOK
         await faceapi.nets.faceExpressionNet.loadFromUri('../models');
         console.log("AI Models Loaded");
     } catch(e) {
@@ -62,17 +65,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-// 位置情報の事前チェック関数
 async function initLocationCheck() {
     if (!navigator.geolocation) {
         console.error("Geolocation not supported");
         return;
     }
-    
     navigator.geolocation.getCurrentPosition(async (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-        
         try {
             const res = await fetch(`${API_BASE_URL}/validate_location`, {
                 method: 'POST',
@@ -80,9 +80,7 @@ async function initLocationCheck() {
                 body: JSON.stringify({ lat: lat, lng: lng })
             });
             const d = await res.json();
-            
             if (d.success && d.in_range) {
-                // キャッシュに保存 (時刻付き)
                 cachedLocation = { lat: lat, lng: lng, timestamp: Date.now() };
                 console.log("Location Verified:", cachedLocation);
             } else {
@@ -97,12 +95,10 @@ function setupHamburgerMenu() {
     const hamburger = document.getElementById('hamburgerMenu');
     const sideNav = document.getElementById('sideNav');
     const overlay = document.getElementById('navOverlay');
-
     const toggle = () => {
         sideNav.classList.toggle('open');
         overlay.classList.toggle('show');
     };
-
     if(hamburger) hamburger.addEventListener('click', toggle);
     if(overlay) overlay.addEventListener('click', toggle);
 }
@@ -129,7 +125,9 @@ function setupTabs() {
             if(btn.dataset.tab === 'checkin') { 
                 startCamera('videoCheckin'); 
                 autoSelectCourse(); 
-                startLivenessCheck(); 
+                // ★瞬きチェック開始
+                blinkState = 0;
+                startBlinkCheck(); 
             }
             if(btn.dataset.tab === 'register-face') { startCamera('videoRegister'); }
             if(btn.dataset.tab === 'chat') { loadTeacherList(); startChatPolling(); }
@@ -171,46 +169,114 @@ async function getFaceDescriptor(vidId) {
     return Array.from(detection.descriptor); 
 }
 
-function startLivenessCheck() {
+// ★追加: 目の開閉度(EAR)を計算する関数
+function getEAR(eyePoints) {
+    // eyePoints は6つの座標配列
+    const p1 = eyePoints[0];
+    const p2 = eyePoints[1];
+    const p3 = eyePoints[2];
+    const p4 = eyePoints[3];
+    const p5 = eyePoints[4];
+    const p6 = eyePoints[5];
+
+    // 縦の距離 (p2-p6, p3-p5)
+    const v1 = Math.hypot(p2.x - p6.x, p2.y - p6.y);
+    const v2 = Math.hypot(p3.x - p5.x, p3.y - p5.y);
+    
+    // 横の距離 (p1-p4)
+    const h = Math.hypot(p1.x - p4.x, p1.y - p4.y);
+
+    // EAR = (v1 + v2) / (2 * h)
+    return (v1 + v2) / (2.0 * h);
+}
+
+// ★大幅修正: 瞬き検知ロジック
+function startBlinkCheck() {
     const video = document.getElementById('videoCheckin');
     const msgEl = document.getElementById('faceStatusMsg');
     const btn = document.getElementById('checkInButton');
     const challengeBox = document.getElementById('livenessChallengeBox');
     const instruction = document.getElementById('livenessInstruction');
 
-    const isSmile = Math.random() > 0.5;
-    requiredExpression = isSmile ? 'happy' : 'neutral';
-    
     challengeBox.style.display = 'block';
-    instruction.textContent = isSmile ? "😊 カメラに向かって「笑顔」を見せてください" : "😐 カメラに向かって「真顔」でいてください";
+    
+    // 初期化
+    blinkState = 0; 
+    btn.disabled = true;
+    msgEl.textContent = "";
 
     if(checkInInterval) clearInterval(checkInInterval);
 
     checkInInterval = setInterval(async () => {
-        if (!faceapi.nets.faceExpressionNet.params || video.paused || video.ended) return;
-        const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceExpressions();
+        if (!faceapi.nets.faceLandmark68Net.params || video.paused || video.ended) return;
+        
+        // ランドマーク取得
+        const detection = await faceapi.detectSingleFace(video).withFaceLandmarks();
         
         if (detection) {
-            const expr = detection.expressions;
-            if (expr[requiredExpression] > 0.7) {
-                msgEl.textContent = "✅ 表情を確認しました！出席ボタンを押せます";
-                msgEl.style.color = "green";
-                if (!document.getElementById('currentKomaId').value) {
-                    btn.disabled = true; 
-                } else {
-                    btn.disabled = false;
+            const landmarks = detection.landmarks;
+            const leftEye = landmarks.getLeftEye();
+            const rightEye = landmarks.getRightEye();
+
+            // 両目のEAR計算
+            const leftEAR = getEAR(leftEye);
+            const rightEAR = getEAR(rightEye);
+            const avgEAR = (leftEAR + rightEAR) / 2.0;
+
+            // ▼ ステップ0: 目が開いているか確認
+            if (blinkState === 0) {
+                instruction.textContent = "👁️ カメラを見てください（パチっと瞬きして！）";
+                instruction.style.color = "#333";
+                msgEl.textContent = "待機中...";
+                
+                // 普通に目が開いている(0.3以上くらい)
+                if (avgEAR > BLINK_THRESHOLD + 0.05) {
+                    // 準備OK、瞬き待ちへ
+                    blinkState = 1;
                 }
-            } else {
-                msgEl.textContent = "🔍 表情を認識中...指示に従ってください";
-                msgEl.style.color = "orange";
-                btn.disabled = true;
             }
+            
+            // ▼ ステップ1: 瞬き（目を閉じる）を待つ
+            else if (blinkState === 1) {
+                // instruction.textContent = "👁️ そのまま瞬きしてください！";
+                
+                // 目が閉じた！ (EARが閾値を下回る)
+                if (avgEAR < BLINK_THRESHOLD) {
+                    blinkState = 2; // 閉じたことを検知
+                    msgEl.textContent = "閉じた！";
+                }
+            }
+
+            // ▼ ステップ2: 再び開くのを待つ
+            else if (blinkState === 2) {
+                // instruction.textContent = "👁️ パチッ！";
+                
+                // また開いた！
+                if (avgEAR > BLINK_THRESHOLD + 0.05) {
+                    blinkState = 3; // 完了
+                }
+            }
+
+            // ▼ 完了
+            else if (blinkState === 3) {
+                instruction.textContent = "✅ 生体確認OK！出席ボタンを押してください";
+                instruction.style.color = "green";
+                msgEl.textContent = "認証成功";
+                msgEl.style.color = "green";
+
+                if (btn.disabled) {
+                    const koma = document.getElementById('currentKomaId').value;
+                    if (koma) btn.disabled = false;
+                }
+            }
+
         } else {
             msgEl.textContent = "❌ 顔が見つかりません";
             msgEl.style.color = "red";
             btn.disabled = true;
+            blinkState = 0; // 顔を見失ったらリセット
         }
-    }, 500);
+    }, 100); // 瞬きを見逃さないよう高速チェック(0.1秒)
 }
 
 function setupEvents(sid) {
@@ -251,7 +317,6 @@ function setupEvents(sid) {
         }
     };
 
-    // 出席打刻 (キャッシュ利用 & 連打防止 & 詳細メッセージ)
     document.getElementById('checkInButton').onclick = async () => {
         const btn = document.getElementById('checkInButton');
         const msg = document.getElementById('checkinMessage');
@@ -327,19 +392,23 @@ function setupEvents(sid) {
                 msg.textContent = `✅ ${ret.message}`;
                 alert(ret.message);
                 loadStudentStats();
+                // 成功したらリセット
+                blinkState = 0;
             } else {
                 msg.textContent = `❌ ${ret.message}`;
             }
         } catch(e) { 
             console.error(e); msg.textContent = "通信または処理エラー"; 
         } finally {
-            btn.disabled = false; btn.textContent = '出席する';
+            if (blinkState === 3) {
+                btn.disabled = false; 
+            }
+            btn.textContent = '出席する';
         }
     };
 
-    // ★修正: 欠席届送信 (連打防止)
     document.getElementById('submitAbsenceButton').onclick = async () => {
-        const btn = document.getElementById('submitAbsenceButton'); // ボタン要素取得
+        const btn = document.getElementById('submitAbsenceButton');
         const date = document.getElementById('absenceDate').value;
         const reason = document.getElementById('absenceReason').value;
         const selects = document.querySelectorAll('.absence-status-select');
@@ -350,7 +419,6 @@ function setupEvents(sid) {
         if(reports.length === 0) { alert("連絡するコマの状態を1つ以上選択してください"); return; }
         if(!reason) { alert("理由を入力してください"); return; }
 
-        // ★ボタン無効化
         btn.disabled = true;
         btn.textContent = '送信中...';
 
@@ -370,13 +438,11 @@ function setupEvents(sid) {
         } catch(e) { 
             console.error(e); alert("通信エラー"); 
         } finally {
-            // ★ボタン復帰
             btn.disabled = false;
             btn.textContent = '送信する';
         }
     };
 
-    // チャット連打防止
     document.getElementById('sendChatButton').onclick = async () => {
         const btn = document.getElementById('sendChatButton');
         const txt = document.getElementById('chatInput').value.trim();
@@ -560,7 +626,6 @@ async function loadTeacherList() {
     const d = await res.json();
     el.innerHTML = '';
     d.teachers.forEach(t => {
-        // 管理者(admin)は除外
         if (t.teacher_id === 'admin' || t.is_admin === 1) return;
         const o = document.createElement('option'); o.value=t.teacher_id; o.textContent=t.teacher_name; el.appendChild(o);
     });
