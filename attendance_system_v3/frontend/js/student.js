@@ -6,9 +6,11 @@ let myChart = null;
 let checkInInterval = null; 
 let cachedLocation = null;
 
-// ★瞬き判定用変数
-let blinkState = 0; // 0:初期(開眼待ち), 1:閉眼検知, 2:再開眼(完了)
-const BLINK_THRESHOLD = 0.25; // この値を下回ると「目をつぶった」と判定
+// ★「口開け」判定用変数
+let mouthState = 0; // 0:口閉じ待ち, 1:口開け待ち, 2:完了
+// 口の開き具合の基準値 (0.0=閉じ, 1.0=全開)
+const THRESHOLD_MOUTH_CLOSED = 0.2; // これ以下なら「閉じている」
+const THRESHOLD_MOUTH_OPEN = 0.5;   // これ以上なら「開いている」
 
 // 位置情報の有効期限 (10分)
 const LOCATION_VALID_DURATION = 10 * 60 * 1000;
@@ -123,9 +125,9 @@ function setupTabs() {
             if(btn.dataset.tab === 'checkin') { 
                 startCamera('videoCheckin'); 
                 autoSelectCourse(); 
-                // ★瞬きチェック開始
-                blinkState = 0;
-                startBlinkCheck(); 
+                // ★口開けチェック開始
+                mouthState = 0;
+                startMouthCheck(); 
             }
             if(btn.dataset.tab === 'register-face') { startCamera('videoRegister'); }
             if(btn.dataset.tab === 'chat') { loadTeacherList(); startChatPolling(); }
@@ -167,31 +169,33 @@ async function getFaceDescriptor(vidId) {
     return Array.from(detection.descriptor); 
 }
 
-// ★追加: 目の開閉度(EAR)を計算する関数
-function getEAR(eyePoints) {
-    const p1 = eyePoints[0];
-    const p2 = eyePoints[1];
-    const p3 = eyePoints[2];
-    const p4 = eyePoints[3];
-    const p5 = eyePoints[4];
-    const p6 = eyePoints[5];
+// ★追加: 口の開き具合(MAR)を計算する関数
+function getMAR(mouth) {
+    // mouthは20点の配列
+    // 0-11: 外側の唇, 12-19: 内側の唇
+    // face-api.jsのlandmarks.getMouth()の仕様に基づく
+    
+    // 内側の唇の上端(14)と下端(18)の距離（縦）
+    const p14 = mouth[14]; // top inner
+    const p18 = mouth[18]; // bottom inner
+    const v = Math.hypot(p14.x - p18.x, p14.y - p18.y);
 
-    const v1 = Math.hypot(p2.x - p6.x, p2.y - p6.y);
-    const v2 = Math.hypot(p3.x - p5.x, p3.y - p5.y);
-    const h = Math.hypot(p1.x - p4.x, p1.y - p4.y);
+    // 口角の左(0)と右(6)の距離（横）
+    const p0 = mouth[0];   // left corner
+    const p6 = mouth[6];   // right corner
+    const h = Math.hypot(p0.x - p6.x, p0.y - p6.y);
 
-    return (v1 + v2) / (2.0 * h);
+    // 縦 / 横 の比率
+    return v / h;
 }
 
-// ★大幅修正: HTMLを変更せずに瞬き検知を行うロジック
-function startBlinkCheck() {
+// ★大幅修正: 「口開け」検知ロジック
+function startMouthCheck() {
     const video = document.getElementById('videoCheckin');
-    // 元々あるメッセージエリアを使う（HTML変更不要）
     const msgEl = document.getElementById('checkinMessage'); 
     const btn = document.getElementById('checkInButton');
     
-    // 初期化
-    blinkState = 0; 
+    mouthState = 0; 
     btn.disabled = true;
     
     if (msgEl) {
@@ -205,75 +209,62 @@ function startBlinkCheck() {
     checkInInterval = setInterval(async () => {
         if (!faceapi.nets.faceLandmark68Net.params || video.paused || video.ended) return;
         
-        // ランドマーク取得
         const detection = await faceapi.detectSingleFace(video).withFaceLandmarks();
         
         if (detection) {
             const landmarks = detection.landmarks;
-            const leftEye = landmarks.getLeftEye();
-            const rightEye = landmarks.getRightEye();
+            const mouth = landmarks.getMouth();
+            const mar = getMAR(mouth); // 口の開き具合 (0.0 ~ 1.0程度)
 
-            // 両目のEAR計算
-            const leftEAR = getEAR(leftEye);
-            const rightEAR = getEAR(rightEye);
-            const avgEAR = (leftEAR + rightEAR) / 2.0;
+            // 数値表示（デバッグ用: 慣れたら消してもOK）
+            const valStr = mar.toFixed(2);
 
-            // ▼ ステップ0: 目が開いているか確認
-            if (blinkState === 0) {
+            // ▼ Step 1: まず口を閉じているか確認
+            if (mouthState === 0) {
                 if(msgEl) {
-                    msgEl.textContent = "👁️ カメラを見てください（パチっと瞬きして！）";
-                    msgEl.style.color = "#007bff"; // 青色
+                    msgEl.textContent = `😐 口を閉じてください (現在: ${valStr})`;
+                    msgEl.style.color = "#333";
                 }
                 
-                // 普通に目が開いている(0.3以上くらい)
-                if (avgEAR > BLINK_THRESHOLD + 0.05) {
-                    blinkState = 1;
+                // 基準値より小さい＝閉じている
+                if (mar < THRESHOLD_MOUTH_CLOSED) {
+                    mouthState = 1;
                 }
             }
-            
-            // ▼ ステップ1: 瞬き（目を閉じる）を待つ
-            else if (blinkState === 1) {
-                // メッセージはそのまま維持
-                
-                // 目が閉じた！ (EARが閾値を下回る)
-                if (avgEAR < BLINK_THRESHOLD) {
-                    blinkState = 2; // 閉じたことを検知
-                    if(msgEl) msgEl.textContent = "そのまま目を開けて...";
-                }
-            }
-
-            // ▼ ステップ2: 再び開くのを待つ
-            else if (blinkState === 2) {
-                // また開いた！
-                if (avgEAR > BLINK_THRESHOLD + 0.05) {
-                    blinkState = 3; // 完了
-                }
-            }
-
-            // ▼ 完了
-            else if (blinkState === 3) {
+            // ▼ Step 2: 口を大きく開ける動作を待つ
+            else if (mouthState === 1) {
                 if(msgEl) {
-                    msgEl.textContent = "✅ 生体確認OK！出席ボタンを押してください";
+                    msgEl.textContent = `😮 口を大きく「あー」と開けて！ (現在: ${valStr})`;
+                    msgEl.style.color = "#e83e8c"; // ピンクで強調
+                }
+
+                // 基準値より大きい＝開いている
+                if (mar > THRESHOLD_MOUTH_OPEN) {
+                    mouthState = 2; // 完了
+                }
+            }
+            // ▼ Step 3: 完了
+            else if (mouthState === 2) {
+                if(msgEl) {
+                    msgEl.textContent = "✅ 確認できました！出席ボタンを押してください";
                     msgEl.style.color = "green";
                 }
-
+                
                 if (btn.disabled) {
                     const koma = document.getElementById('currentKomaId').value;
-                    // コマ情報があればボタン有効化
                     if (koma) btn.disabled = false;
                 }
             }
 
         } else {
-            // 顔が見つからない場合
             if(msgEl) {
                 msgEl.textContent = "❌ 顔が見つかりません";
                 msgEl.style.color = "red";
             }
             btn.disabled = true;
-            blinkState = 0; // リセット
+            mouthState = 0; // 見失ったらリセット
         }
-    }, 100); 
+    }, 200); // 0.2秒間隔でチェック
 }
 
 function setupEvents(sid) {
@@ -389,14 +380,14 @@ function setupEvents(sid) {
                 msg.textContent = `✅ ${ret.message}`;
                 alert(ret.message);
                 loadStudentStats();
-                blinkState = 0; // 成功したらリセット
+                mouthState = 0; // 成功したらリセット
             } else {
                 msg.textContent = `❌ ${ret.message}`;
             }
         } catch(e) { 
             console.error(e); msg.textContent = "通信または処理エラー"; 
         } finally {
-            if (blinkState === 3) {
+            if (mouthState === 2) {
                 btn.disabled = false; 
             }
             btn.textContent = '出席する';
