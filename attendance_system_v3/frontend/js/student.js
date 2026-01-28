@@ -56,8 +56,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         await faceapi.nets.ssdMobilenetv1.loadFromUri('../models');
         await faceapi.nets.faceLandmark68Net.loadFromUri('../models');
         await faceapi.nets.faceRecognitionNet.loadFromUri('../models');
-        // 表情モデルは不要になりますが、エラー防止のため残しておいてもOK
-        await faceapi.nets.faceExpressionNet.loadFromUri('../models');
         console.log("AI Models Loaded");
     } catch(e) {
         console.error("AI Model Error:", e);
@@ -171,7 +169,6 @@ async function getFaceDescriptor(vidId) {
 
 // ★追加: 目の開閉度(EAR)を計算する関数
 function getEAR(eyePoints) {
-    // eyePoints は6つの座標配列
     const p1 = eyePoints[0];
     const p2 = eyePoints[1];
     const p3 = eyePoints[2];
@@ -179,31 +176,29 @@ function getEAR(eyePoints) {
     const p5 = eyePoints[4];
     const p6 = eyePoints[5];
 
-    // 縦の距離 (p2-p6, p3-p5)
     const v1 = Math.hypot(p2.x - p6.x, p2.y - p6.y);
     const v2 = Math.hypot(p3.x - p5.x, p3.y - p5.y);
-    
-    // 横の距離 (p1-p4)
     const h = Math.hypot(p1.x - p4.x, p1.y - p4.y);
 
-    // EAR = (v1 + v2) / (2 * h)
     return (v1 + v2) / (2.0 * h);
 }
 
-// ★大幅修正: 瞬き検知ロジック
+// ★大幅修正: HTMLを変更せずに瞬き検知を行うロジック
 function startBlinkCheck() {
     const video = document.getElementById('videoCheckin');
-    const msgEl = document.getElementById('faceStatusMsg');
+    // 元々あるメッセージエリアを使う（HTML変更不要）
+    const msgEl = document.getElementById('checkinMessage'); 
     const btn = document.getElementById('checkInButton');
-    const challengeBox = document.getElementById('livenessChallengeBox');
-    const instruction = document.getElementById('livenessInstruction');
-
-    if(challengeBox) challengeBox.style.display = 'block';
     
     // 初期化
     blinkState = 0; 
     btn.disabled = true;
-    if(msgEl) msgEl.textContent = "";
+    
+    if (msgEl) {
+        msgEl.style.display = 'block';
+        msgEl.style.color = '#333';
+        msgEl.textContent = "AI準備中...";
+    }
 
     if(checkInInterval) clearInterval(checkInInterval);
 
@@ -225,32 +220,30 @@ function startBlinkCheck() {
 
             // ▼ ステップ0: 目が開いているか確認
             if (blinkState === 0) {
-                if(instruction) instruction.textContent = "👁️ カメラを見てください（パチっと瞬きして！）";
-                if(instruction) instruction.style.color = "#333";
-                if(msgEl) msgEl.textContent = "待機中...";
+                if(msgEl) {
+                    msgEl.textContent = "👁️ カメラを見てください（パチっと瞬きして！）";
+                    msgEl.style.color = "#007bff"; // 青色
+                }
                 
                 // 普通に目が開いている(0.3以上くらい)
                 if (avgEAR > BLINK_THRESHOLD + 0.05) {
-                    // 準備OK、瞬き待ちへ
                     blinkState = 1;
                 }
             }
             
             // ▼ ステップ1: 瞬き（目を閉じる）を待つ
             else if (blinkState === 1) {
-                // instruction.textContent = "👁️ そのまま瞬きしてください！";
+                // メッセージはそのまま維持
                 
                 // 目が閉じた！ (EARが閾値を下回る)
                 if (avgEAR < BLINK_THRESHOLD) {
                     blinkState = 2; // 閉じたことを検知
-                    if(msgEl) msgEl.textContent = "閉じた！";
+                    if(msgEl) msgEl.textContent = "そのまま目を開けて...";
                 }
             }
 
             // ▼ ステップ2: 再び開くのを待つ
             else if (blinkState === 2) {
-                // instruction.textContent = "👁️ パチッ！";
-                
                 // また開いた！
                 if (avgEAR > BLINK_THRESHOLD + 0.05) {
                     blinkState = 3; // 完了
@@ -259,24 +252,28 @@ function startBlinkCheck() {
 
             // ▼ 完了
             else if (blinkState === 3) {
-                if(instruction) instruction.textContent = "✅ 生体確認OK！出席ボタンを押してください";
-                if(instruction) instruction.style.color = "green";
-                if(msgEl) msgEl.textContent = "認証成功";
-                if(msgEl) msgEl.style.color = "green";
+                if(msgEl) {
+                    msgEl.textContent = "✅ 生体確認OK！出席ボタンを押してください";
+                    msgEl.style.color = "green";
+                }
 
                 if (btn.disabled) {
                     const koma = document.getElementById('currentKomaId').value;
+                    // コマ情報があればボタン有効化
                     if (koma) btn.disabled = false;
                 }
             }
 
         } else {
-            if(msgEl) msgEl.textContent = "❌ 顔が見つかりません";
-            if(msgEl) msgEl.style.color = "red";
+            // 顔が見つからない場合
+            if(msgEl) {
+                msgEl.textContent = "❌ 顔が見つかりません";
+                msgEl.style.color = "red";
+            }
             btn.disabled = true;
-            blinkState = 0; // 顔を見失ったらリセット
+            blinkState = 0; // リセット
         }
-    }, 100); // 瞬きを見逃さないよう高速チェック(0.1秒)
+    }, 100); 
 }
 
 function setupEvents(sid) {
@@ -323,7 +320,7 @@ function setupEvents(sid) {
         const cid = document.getElementById('currentCourseId').value;
         const koma = document.getElementById('currentKomaId').value;
         
-        msg.style.display = 'block';
+        if(msg) msg.style.display = 'block';
         btn.disabled = true;
         btn.textContent = '処理中...';
 
@@ -351,7 +348,7 @@ function setupEvents(sid) {
             btn.disabled = false; btn.textContent = '出席する'; return;
         }
 
-        msg.textContent = "登録状況を確認中...";
+        if(msg) msg.textContent = "登録状況を確認中...";
         try {
             const today = new Date().toISOString().split('T')[0];
             const checkRes = await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${today}&end_date=${today}`);
@@ -370,7 +367,7 @@ function setupEvents(sid) {
         } catch(e) { console.error("Duplicate check error:", e); }
 
         try {
-            msg.textContent = "顔解析中...";
+            if(msg) msg.textContent = "顔解析中...";
             const descriptor = await getFaceDescriptor('videoCheckin');
             if (!descriptor) { 
                 msg.textContent = "❌ 顔が見つかりません"; 
@@ -392,8 +389,7 @@ function setupEvents(sid) {
                 msg.textContent = `✅ ${ret.message}`;
                 alert(ret.message);
                 loadStudentStats();
-                // 成功したらリセット
-                blinkState = 0;
+                blinkState = 0; // 成功したらリセット
             } else {
                 msg.textContent = `❌ ${ret.message}`;
             }

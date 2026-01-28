@@ -2,167 +2,133 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>出席登録システム (生徒用)</title>
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>生徒ダッシュボード</title>
     <link rel="stylesheet" href="../css/common.css">
     <link rel="stylesheet" href="../css/student_style.css">
-    <script defer src="../js/face-api.min.js"></script>
-    <script defer src="../js/student.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        /* 追加スタイル: 生体認証エリア */
-        .liveness-box {
-            background-color: #f8f9fa;
-            border: 2px solid #007bff;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 15px 0; /* マージンを調整 */
-            text-align: center;
-            display: none; /* JSで表示制御 */
-        }
-        #livenessInstruction {
-            font-size: 1.1rem; /* フォントサイズを少し小さく */
-            font-weight: bold;
-            margin-bottom: 5px;
-            color: #333;
-        }
-        #faceStatusMsg {
-            font-weight: bold;
-            min-height: 1.5em;
-        }
-    </style>
 </head>
 <body>
-    <div id="navOverlay" class="nav-overlay"></div>
-    <div id="sideNav" class="side-nav">
-        <button class="tab-button active" data-tab="checkin">出席登録</button>
-        <button class="tab-button" data-tab="schedule-view">時間割</button>
-        <button class="tab-button" data-tab="records">出席記録</button>
-        <button class="tab-button" data-tab="chat">チャット</button>
-        <button class="tab-button" data-tab="register-face">顔登録設定</button>
-        <div style="margin-top: auto; padding: 20px;">
-            <button id="logoutButton" style="background-color: #6c757d;">ログアウト</button>
-        </div>
-    </div>
-
     <header>
-        <div class="header-content">
-            <button id="hamburgerMenu" class="hamburger-menu">☰</button>
-            <h1>出席登録</h1>
-            <div class="user-info">ID: <span id="studentId"></span> <span id="studentName"></span></div>
+    <div class="hamburger-menu" id="hamburgerMenu">
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
+    <h1>出席管理システム</h1>
+    <div class="header-right">
+        <div class="user-details">
+            <span id="studentIdDisplay">ID: <span id="studentId">12345</span></span>
+            <span id="studentName">ゲスト 様</span>
         </div>
-    </header>
+        </div>
+</header>
 
-    <div class="container main-content">
-        <div id="checkin" class="tab-content active">
-            <h2>📷 出席登録</h2>
-            
-            <div class="card">
-                <div id="autoSelectInfo" style="font-weight:bold; color:#007bff; margin-bottom:10px;"></div>
+<nav class="side-nav" id="sideNav">
+    <div class="nav-header">メニュー</div>
+    <div class="nav-links">
+        <button class="tab-button active" data-tab="schedule-view">📅 ホーム</button>
+        <button class="tab-button" data-tab="checkin">📸 出席打刻</button>
+        <button class="tab-button" data-tab="records">📜 出席記録</button>
+        <button class="tab-button" data-tab="absence">📩 欠席届</button>
+        <button class="tab-button" data-tab="chat">💬 連絡</button>
+        <button class="tab-button" data-tab="register-face">👤 顔登録</button>
+        <button id="logoutButton" style="background-color: #666;">ログアウト</button>
+    </div>
+</nav>
+<div class="nav-overlay" id="navOverlay"></div>
+
+    <div class="container" style="margin-top:20px;">
+        <div id="checkin" class="tab-content" style="display:none;">
+            <h2>📸 出席打刻</h2>
+            <div style="text-align: center;">
+                <p id="autoSelectInfo" style="font-weight:bold; color:#007bff; margin-bottom:10px;">--</p>
+                <div id="livenessChallengeBox" style="background:#fff3cd; color:#856404; padding:8px; border-radius:4px; margin-bottom:10px; display:none;">
+                    <strong>🤖 なりすまし防止チェック:</strong> <br>
+                    <span id="livenessInstruction" style="font-size:1.1em; font-weight:bold;"></span>
+                </div>
+                <div class="camera-box">
+                    <video id="videoCheckin" autoplay playsinline></video>
+                </div>
                 
-                <div class="form-group">
-                    <label>現在の授業:</label>
-                    <input type="text" id="courseDisplayCheckin" readonly placeholder="自動取得中...">
+                <p id="faceStatusMsg" style="color:orange; font-size:0.9rem; font-weight:bold;">カメラを起動中...</p>
+                
+                <div class="control-group">
+                    <label>授業: <input type="text" id="courseDisplayCheckin" readonly style="width:100%; text-align:center; background:#eee; border:1px solid #ccc; border-radius:4px; font-weight:bold;"></label>
                     <input type="hidden" id="currentCourseId">
-                </div>
-                
-                <div class="form-group">
-                    <label>時限:</label>
-                    <input type="text" id="komaDisplayCheckin" readonly placeholder="-">
+                    
+                    <label>時限: <input type="text" id="komaDisplayCheckin" readonly style="width:60px; text-align:center; background:#eee; border:1px solid #ccc; border-radius:4px;"></label>
                     <input type="hidden" id="currentKomaId">
-                </div>
-
-                <div style="position: relative; margin: 0 auto; width: 100%; max-width: 400px;">
-                    <video id="videoCheckin" autoplay muted playsinline style="width: 100%; border-radius: 8px; border: 1px solid #ccc;"></video>
-                </div>
-
-                <div id="livenessChallengeBox" class="liveness-box">
-                    <div id="livenessInstruction">準備中...</div>
-                    <div id="faceStatusMsg"></div>
-                </div>
-
-                <div id="checkinMessage" style="margin:10px 0; font-weight:bold; display:none;"></div>
-                
-                <button id="checkInButton" class="btn-primary" disabled>出席する</button>
+                    </div>
+                <button id="checkInButton" disabled>出席する</button>
+                <p id="checkinMessage" style="margin-top: 15px; font-weight: bold;"></p>
             </div>
         </div>
 
-        <div id="schedule-view" class="tab-content">
-            <h2>📅 今月の時間割</h2>
-            <div style="margin-bottom:10px; text-align:center;">
-                <input type="month" id="studentScheduleMonth">
-            </div>
+        <div id="schedule-view" class="tab-content active">
+            <h2>📅 今月のスケジュール</h2>
+            <input type="month" id="studentScheduleMonth" style="margin-bottom:15px; padding:5px;">
             <div id="scheduleContainer"></div>
         </div>
 
         <div id="records" class="tab-content">
-            <h2>📊 出席状況・履歴</h2>
+            <h2>📜 出席記録</h2>
             
-            <div class="card">
-                <h3>出席率: <span id="attendanceRate" style="font-size:1.5em; color:#28a745;">-</span>%</h3>
-                <p>総授業数: <span id="totalClasses">-</span> 回</p>
-                <div style="max-width:300px; margin:0 auto;">
+            <div style="background:white; padding:15px; border-radius:8px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                <h3 style="margin-top:0;">現在の出席率: <span id="attendanceRate" style="color:#007bff; font-size:1.5rem;">--</span>%</h3>
+                <div style="width:100%; max-width:350px; margin:0 auto;">
                     <canvas id="attendanceChart"></canvas>
                 </div>
+                <p style="font-size:0.8rem; color:#666; text-align:center; margin-top:10px;">
+                    実施授業数: <span id="totalClasses">--</span> 回
+                </p>
             </div>
+            <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <input type="month" id="recordCalendarMonth" style="padding: 5px;">
+                <button id="refreshRecordsBtn" style="padding: 5px 10px; font-size: 0.9rem;">更新</button>
+            </div>
+            <div id="recordCalendarContainer"></div>
+        </div>
 
-            <div class="card" style="margin-top:20px;">
-                <h3>履歴カレンダー</h3>
-                <div style="text-align:center; margin-bottom:10px;">
-                    <input type="month" id="recordCalendarMonth">
-                    <button id="refreshRecordsBtn" style="padding:5px 10px;">更新</button>
-                </div>
-                <div id="recordCalendarContainer"></div>
+        <div id="absence" class="tab-content">
+            <h2>📩 欠席・遅刻の連絡</h2>
+            <div style="margin-bottom:15px;">
+                <label>対象日: <input type="date" id="absenceDate"></label>
             </div>
+            <div class="absence-row"><span>1限</span><select class="absence-status-select" data-koma="1"><option value="">(選択なし - 出席)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></div>
+            <div class="absence-row"><span>2限</span><select class="absence-status-select" data-koma="2"><option value="">(選択なし - 出席)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></div>
+            <div class="absence-row"><span>3限</span><select class="absence-status-select" data-koma="3"><option value="">(選択なし - 出席)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></div>
+            <div class="absence-row"><span>4限</span><select class="absence-status-select" data-koma="4"><option value="">(選択なし - 出席)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></div>
+            <label style="margin-top:15px;">理由</label>
+            <input type="text" id="absenceReason" placeholder="例: 電車遅延、体調不良など">
+            <button id="submitAbsenceButton" style="background-color: #ff9800; margin-top:10px;">送信する</button>
         </div>
 
         <div id="chat" class="tab-content">
-            <h2>💬 教員へ連絡</h2>
-            
-            <div class="card" style="margin-bottom:20px; border-left: 5px solid #ffc107;">
-                <h3>📩 欠席・遅刻・早退届</h3>
-                <div class="form-group">
-                    <label>日付:</label>
-                    <input type="date" id="absenceDate">
-                </div>
-                <div class="form-group">
-                    <label>対象の授業 (状態を選択):</label>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
-                        <label>1限: <select class="absence-status-select" data-koma="1"><option value="">(選択なし)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></label>
-                        <label>2限: <select class="absence-status-select" data-koma="2"><option value="">(選択なし)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></label>
-                        <label>3限: <select class="absence-status-select" data-koma="3"><option value="">(選択なし)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></label>
-                        <label>4限: <select class="absence-status-select" data-koma="4"><option value="">(選択なし)</option><option value="2">遅刻</option><option value="3">欠席</option><option value="4">早退</option></select></label>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>理由:</label>
-                    <textarea id="absenceReason" rows="3" placeholder="体調不良のため、電車遅延のため 等"></textarea>
-                </div>
-                <button id="submitAbsenceButton" style="background-color:#ffc107; color:black;">届出を送信</button>
-            </div>
-
-            <div class="card">
-                <h3>先生とチャット</h3>
-                <div class="form-group">
-                    <label>宛先:</label>
-                    <select id="chatTeacherSelect"></select>
-                </div>
-                <div id="chatWindow" class="chat-window"></div>
-                <div style="display:flex; gap:10px; margin-top:10px;">
-                    <input type="text" id="chatInput" placeholder="メッセージ..." style="flex:1;">
-                    <button id="sendChatButton">送信</button>
-                </div>
+            <h2>💬 先生への連絡</h2>
+            <label>宛先の先生</label>
+            <select id="chatTeacherSelect"></select>
+            <div id="chatWindow" class="chat-window"></div>
+            <div style="display:flex; gap:10px;">
+                <input type="text" id="chatInput" placeholder="メッセージ..." style="flex:1; margin-bottom:0;">
+                <button id="sendChatButton" style="width:auto; padding:0 20px;">送信</button>
             </div>
         </div>
 
         <div id="register-face" class="tab-content">
-            <h2>⚙️ 顔認証データの登録</h2>
-            <p style="font-size:0.9rem; color:gray;">※先生から許可が出ている時間のみ登録可能です</p>
-            <div style="position: relative; margin: 0 auto; width: 100%; max-width: 300px;">
-                <video id="videoRegister" autoplay muted playsinline style="width: 100%; border-radius: 8px; border: 1px solid #ccc;"></video>
+            <h2>👤 顔データの登録</h2>
+            <p style="font-size:0.9rem; color:#666; margin-bottom:10px;">カメラを見て「登録」ボタンを押してください。</p>
+            <div class="camera-box">
+                <video id="videoRegister" autoplay playsinline></video>
             </div>
-            <button id="registerFaceButton" class="btn-primary" style="margin-top:15px; background-color:#17a2b8;">顔データを登録・更新</button>
+            <button id="registerFaceButton">登録</button>
         </div>
     </div>
+
+    <script src="../js/libs/face-api.min.js"></script>
+    <script src="../js/student.js"></script>
 </body>
 </html>
