@@ -553,6 +553,11 @@ def chat_history():
     res = execute_query("SELECT sender_id, message_content, DATE_FORMAT(timestamp, '%%Y-%%m-%%d %%H:%%i') as time FROM chat_messages WHERE (sender_id=%s AND receiver_id=%s) OR (sender_id=%s AND receiver_id=%s) ORDER BY timestamp ASC", (u1,u2,u2,u1), fetch=True)
     return jsonify({'success': True, 'messages': res})
 
+# 起動時に一度だけスレッドを開始する仕組みを入れる
+if not any(t.name == 'AutoAbsentThread' for t in threading.enumerate()):
+    t = threading.Thread(target=auto_mark_absent_loop, daemon=True, name='AutoAbsentThread')
+    t.start()
+    
 if __name__ == '__main__':
     # スレッド起動
     t = threading.Thread(target=auto_mark_absent_loop, daemon=True)
