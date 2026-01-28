@@ -6,12 +6,9 @@ let myChart = null;
 let checkInInterval = null; 
 let cachedLocation = null;
 
-// ★「口開け」動作判定用
-let mouthState = 0; // 0:口閉じ確認, 1:口開け確認, 2:完了
-
-// 口の開き具合(MAR)の基準値
-const THRESHOLD_MOUTH_CLOSED = 0.15; 
-const THRESHOLD_MOUTH_OPEN = 0.45;   
+// ★「首振り（向き）」判定用変数
+let livenessState = 0; // 0:正面確認, 1:指示待ち/動作確認, 2:完了
+let targetDirection = ''; // 'left' or 'right'
 
 // 位置情報の有効期限 (10分)
 const LOCATION_VALID_DURATION = 10 * 60 * 1000;
@@ -125,9 +122,6 @@ function setupTabs() {
 
             if(btn.dataset.tab === 'checkin') { 
                 startCamera('videoCheckin'); 
-                
-                // ★修正: ここで直接 startMouthCheck を呼ばず、
-                // autoSelectCourse（状況判断）に任せるように変更
                 autoSelectCourse(); 
             }
             if(btn.dataset.tab === 'register-face') { startCamera('videoRegister'); }
@@ -170,28 +164,47 @@ async function getFaceDescriptor(vidId) {
     return Array.from(detection.descriptor); 
 }
 
-function getMAR(mouth) {
-    const p14 = mouth[14]; 
-    const p18 = mouth[18]; 
-    const v = Math.hypot(p14.x - p18.x, p14.y - p18.y);
-    const p0 = mouth[0];   
-    const p6 = mouth[6];   
-    const h = Math.hypot(p0.x - p6.x, p0.y - p6.y);
-    return v / h;
+// ★追加: 顔の向き（Yaw）を簡易計算する関数
+function getFaceDirection(landmarks) {
+    // 鼻の頭 (30)
+    const nose = landmarks.positions[30];
+    // 左の頬端 (0)
+    const jawLeft = landmarks.positions[0];
+    // 右の頬端 (16)
+    const jawRight = landmarks.positions[16];
+
+    // 顔の全幅
+    const faceWidth = Math.abs(jawRight.x - jawLeft.x);
+    // 鼻から左端までの距離
+    const noseToLeft = Math.abs(nose.x - jawLeft.x);
+
+    // 比率を計算 (0.5付近なら正面)
+    // 左を向く(自分の左) → 鼻が左(0)に近づく → 比率が小さくなる
+    // 右を向く(自分の右) → 鼻が右(16)に近づく → 比率が大きくなる
+    const ratio = noseToLeft / faceWidth;
+
+    // 判定基準
+    // ※鏡のように表示されている(左右反転)ことが多いので注意が必要ですが、
+    // face-apiの座標系で素直に判定します。
+    // ratio < 0.4 : 左向き (画面上の左、つまりユーザーにとっての右)
+    // ratio > 0.6 : 右向き (画面上の右、つまりユーザーにとっての左)
+    
+    // ユーザーにとっての方向で返します
+    if (ratio < 0.4) return 'right'; // ユーザーの右
+    if (ratio > 0.6) return 'left';  // ユーザーの左
+    return 'center';
 }
 
-// ★修正: 重複チェックを行い、未登録の場合のみAI判定を開始する
 async function autoSelectCourse() {
     if(!myClassId) return;
     const sid = sessionStorage.getItem('user_id');
 
-    // UI初期化
     const btn = document.getElementById('checkInButton');
     const msgEl = document.getElementById('checkinMessage');
     if(msgEl) msgEl.style.display = 'none';
     btn.disabled = true;
     btn.textContent = '確認中...';
-    btn.style.backgroundColor = ""; // 色リセット
+    btn.style.backgroundColor = ""; 
 
     try {
         const res = await fetch(`${API_BASE_URL}/get_today_schedule?class_id=${myClassId}`);
@@ -220,7 +233,6 @@ async function autoSelectCourse() {
                 displayCourse.value = item.course_name;
                 info.textContent = `📅 現在: ${tk}限 ${item.course_name}`;
 
-                // ★追加: 既に登録済みかチェック
                 const today = new Date().toISOString().split('T')[0];
                 const recRes = await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${today}&end_date=${today}`);
                 const recData = await recRes.json();
@@ -230,27 +242,23 @@ async function autoSelectCourse() {
                     const done = recData.records.find(r => r.koma == tk);
                     if (done) {
                         isAlreadyDone = true;
-                        // 既に記録がある場合 -> ボタン無効化 & メッセージ表示
                         btn.disabled = true;
                         btn.textContent = `登録済 (${done.status_text})`;
-                        btn.style.backgroundColor = "#6c757d"; // グレーアウト
-                        
+                        btn.style.backgroundColor = "#6c757d"; 
                         if(msgEl) {
                             msgEl.style.display = 'block';
                             msgEl.style.color = '#333';
                             msgEl.innerHTML = `✅ このコマは既に <b>${done.status_text}</b> で登録されています。<br>（${done.course_name}）`;
                         }
-                        
-                        // AIチェックは止める
                         if(checkInInterval) clearInterval(checkInInterval);
                     }
                 }
 
-                // 未登録の場合のみ、AIチェック(口開け判定)を開始
                 if (!isAlreadyDone) {
-                     btn.textContent = '出席する'; // ボタン名は戻すがdisabledのまま
-                     mouthState = 0;
-                     startMouthCheck(); 
+                     btn.textContent = '出席する'; 
+                     // ★首振りチェック開始
+                     livenessState = 0;
+                     startHeadTurnCheck(); 
                 }
 
             } else {
@@ -266,12 +274,13 @@ async function autoSelectCourse() {
     } catch(e) { console.error(e); }
 }
 
-function startMouthCheck() {
+// ★大幅修正: 「首振り」検知ロジック
+function startHeadTurnCheck() {
     const video = document.getElementById('videoCheckin');
     const msgEl = document.getElementById('checkinMessage'); 
     const btn = document.getElementById('checkInButton');
     
-    mouthState = 0; 
+    livenessState = 0; 
     btn.disabled = true;
     
     if (msgEl) {
@@ -288,30 +297,37 @@ function startMouthCheck() {
         const detection = await faceapi.detectSingleFace(video).withFaceLandmarks();
         
         if (detection) {
-            const landmarks = detection.landmarks;
-            const mouth = landmarks.getMouth();
-            const mar = getMAR(mouth); 
-            const valStr = mar.toFixed(2);
+            const currentDir = getFaceDirection(detection.landmarks);
 
-            if (mouthState === 0) {
+            // ▼ Step 1: まず正面を向く
+            if (livenessState === 0) {
                 if(msgEl) {
-                    msgEl.textContent = `😐 まず口を閉じてください (現在: ${valStr})`;
+                    msgEl.textContent = "😐 カメラを正面から見てください";
                     msgEl.style.color = "#333";
                 }
-                if (mar < THRESHOLD_MOUTH_CLOSED) {
-                    mouthState = 1;
+                
+                if (currentDir === 'center') {
+                    // 正面を確認できたら、次の指示をランダムに決定
+                    livenessState = 1;
+                    targetDirection = Math.random() < 0.5 ? 'right' : 'left';
                 }
             }
-            else if (mouthState === 1) {
+            // ▼ Step 2: 指定された方向を向く
+            else if (livenessState === 1) {
+                const dirText = targetDirection === 'right' ? '👉 右' : '👈 左';
                 if(msgEl) {
-                    msgEl.textContent = `😮 次に口を「あー」と開けて！ (現在: ${valStr})`;
-                    msgEl.style.color = "#e83e8c";
+                    msgEl.textContent = `${dirText} を向いてください！`;
+                    msgEl.style.color = "#e83e8c"; // 目立つ色
+                    msgEl.style.fontWeight = "bold";
                 }
-                if (mar > THRESHOLD_MOUTH_OPEN) {
-                    mouthState = 2; 
+
+                // 指示通り向いたか？
+                if (currentDir === targetDirection) {
+                    livenessState = 2; // 完了
                 }
             }
-            else if (mouthState === 2) {
+            // ▼ 完了
+            else if (livenessState === 2) {
                 if(msgEl) {
                     msgEl.textContent = "✅ 生体確認OK！出席ボタンを押してください";
                     msgEl.style.color = "green";
@@ -328,7 +344,7 @@ function startMouthCheck() {
                 msgEl.style.color = "red";
             }
             btn.disabled = true;
-            mouthState = 0; 
+            livenessState = 0; // リセット
         }
     }, 200); 
 }
@@ -406,7 +422,6 @@ function setupEvents(sid) {
         }
 
         if(msg) msg.textContent = "登録状況を確認中...";
-        // ※念のためここでも重複チェックは残しておきます（二重防止）
         try {
             const today = new Date().toISOString().split('T')[0];
             const checkRes = await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${today}&end_date=${today}`);
@@ -447,14 +462,12 @@ function setupEvents(sid) {
                 msg.textContent = `✅ ${ret.message}`;
                 alert(ret.message);
                 loadStudentStats();
-                // 成功後はチェック停止してボタンをロックする
                 if(checkInInterval) clearInterval(checkInInterval);
                 btn.disabled = true;
                 btn.textContent = '登録完了';
                 btn.style.backgroundColor = "#28a745";
             } else {
                 msg.textContent = `❌ ${ret.message}`;
-                // 失敗時はボタンを戻す
                 btn.disabled = false;
                 btn.textContent = '出席する';
             }
