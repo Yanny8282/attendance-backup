@@ -164,35 +164,22 @@ async function getFaceDescriptor(vidId) {
     return Array.from(detection.descriptor); 
 }
 
-// ★追加: 顔の向き（Yaw）を簡易計算する関数
+// 顔の向き（Yaw）を簡易計算
+// 戻り値: { dir: 'left'|'right'|'center', ratio: number }
 function getFaceDirection(landmarks) {
-    // 鼻の頭 (30)
     const nose = landmarks.positions[30];
-    // 左の頬端 (0)
     const jawLeft = landmarks.positions[0];
-    // 右の頬端 (16)
     const jawRight = landmarks.positions[16];
 
-    // 顔の全幅
     const faceWidth = Math.abs(jawRight.x - jawLeft.x);
-    // 鼻から左端までの距離
     const noseToLeft = Math.abs(nose.x - jawLeft.x);
-
-    // 比率を計算 (0.5付近なら正面)
-    // 左を向く(自分の左) → 鼻が左(0)に近づく → 比率が小さくなる
-    // 右を向く(自分の右) → 鼻が右(16)に近づく → 比率が大きくなる
     const ratio = noseToLeft / faceWidth;
 
-    // 判定基準
-    // ※鏡のように表示されている(左右反転)ことが多いので注意が必要ですが、
-    // face-apiの座標系で素直に判定します。
-    // ratio < 0.4 : 左向き (画面上の左、つまりユーザーにとっての右)
-    // ratio > 0.6 : 右向き (画面上の右、つまりユーザーにとっての左)
+    // ★修正: 閾値をさらに厳しく変更 (0.2, 0.8)
+    if (ratio < 0.20) return { dir: 'right', ratio: ratio };
+    if (ratio > 0.80) return { dir: 'left', ratio: ratio };
     
-    // ユーザーにとっての方向で返します
-    if (ratio < 0.2) return 'right'; // ユーザーの右
-    if (ratio > 0.8) return 'left';  // ユーザーの左
-    return 'center';
+    return { dir: 'center', ratio: ratio };
 }
 
 async function autoSelectCourse() {
@@ -256,7 +243,7 @@ async function autoSelectCourse() {
 
                 if (!isAlreadyDone) {
                      btn.textContent = '出席する'; 
-                     // ★首振りチェック開始
+                     // 首振りチェック開始
                      livenessState = 0;
                      startHeadTurnCheck(); 
                 }
@@ -274,7 +261,7 @@ async function autoSelectCourse() {
     } catch(e) { console.error(e); }
 }
 
-// ★大幅修正: 「首振り」検知ロジック
+// 首振り検知ロジック
 function startHeadTurnCheck() {
     const video = document.getElementById('videoCheckin');
     const msgEl = document.getElementById('checkinMessage'); 
@@ -297,17 +284,18 @@ function startHeadTurnCheck() {
         const detection = await faceapi.detectSingleFace(video).withFaceLandmarks();
         
         if (detection) {
-            const currentDir = getFaceDirection(detection.landmarks);
+            const result = getFaceDirection(detection.landmarks);
+            const currentDir = result.dir;
+            const currentRatio = result.ratio.toFixed(2);
 
             // ▼ Step 1: まず正面を向く
             if (livenessState === 0) {
                 if(msgEl) {
-                    msgEl.textContent = "😐 カメラを正面から見てください";
+                    msgEl.textContent = `😐 正面を見てください (現在: ${currentRatio})`;
                     msgEl.style.color = "#333";
                 }
                 
                 if (currentDir === 'center') {
-                    // 正面を確認できたら、次の指示をランダムに決定
                     livenessState = 1;
                     targetDirection = Math.random() < 0.5 ? 'right' : 'left';
                 }
@@ -315,13 +303,14 @@ function startHeadTurnCheck() {
             // ▼ Step 2: 指定された方向を向く
             else if (livenessState === 1) {
                 const dirText = targetDirection === 'right' ? '👉 右' : '👈 左';
+                const targetVal = targetDirection === 'right' ? '0.2以下' : '0.8以上';
+
                 if(msgEl) {
-                    msgEl.textContent = `${dirText} を向いてください！`;
-                    msgEl.style.color = "#e83e8c"; // 目立つ色
+                    msgEl.textContent = `${dirText} を向いて！ (${currentRatio} → ${targetVal})`;
+                    msgEl.style.color = "#e83e8c"; 
                     msgEl.style.fontWeight = "bold";
                 }
 
-                // 指示通り向いたか？
                 if (currentDir === targetDirection) {
                     livenessState = 2; // 完了
                 }
