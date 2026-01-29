@@ -175,7 +175,7 @@ function getFaceDirection(landmarks) {
     const noseToLeft = Math.abs(nose.x - jawLeft.x);
     const ratio = noseToLeft / faceWidth;
 
-    // ★修正: 閾値をさらに厳しく変更 (0.2, 0.8)
+    // ★閾値を厳しく設定 (0.2, 0.8)
     if (ratio < 0.20) return { dir: 'right', ratio: ratio };
     if (ratio > 0.80) return { dir: 'left', ratio: ratio };
     
@@ -189,7 +189,7 @@ async function autoSelectCourse() {
     const btn = document.getElementById('checkInButton');
     const msgEl = document.getElementById('checkinMessage');
     if(msgEl) msgEl.style.display = 'none';
-    btn.disabled = true;
+    btn.disabled = true; // 最初は無効
     btn.textContent = '確認中...';
     btn.style.backgroundColor = ""; 
 
@@ -220,6 +220,7 @@ async function autoSelectCourse() {
                 displayCourse.value = item.course_name;
                 info.textContent = `📅 現在: ${tk}限 ${item.course_name}`;
 
+                // 既に登録済みかチェック
                 const today = new Date().toISOString().split('T')[0];
                 const recRes = await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${today}&end_date=${today}`);
                 const recData = await recRes.json();
@@ -243,7 +244,7 @@ async function autoSelectCourse() {
 
                 if (!isAlreadyDone) {
                      btn.textContent = '出席する'; 
-                     // 首振りチェック開始
+                     // まだボタンは無効のまま、首振りチェックを開始
                      livenessState = 0;
                      startHeadTurnCheck(); 
                 }
@@ -261,14 +262,14 @@ async function autoSelectCourse() {
     } catch(e) { console.error(e); }
 }
 
-// 首振り検知ロジック
+// ★修正: 首振り検知ロジック (0.2/0.8版)
 function startHeadTurnCheck() {
     const video = document.getElementById('videoCheckin');
     const msgEl = document.getElementById('checkinMessage'); 
     const btn = document.getElementById('checkInButton');
     
     livenessState = 0; 
-    btn.disabled = true;
+    btn.disabled = true; // チェック中はボタン無効
     
     if (msgEl) {
         msgEl.style.display = 'block';
@@ -286,7 +287,7 @@ function startHeadTurnCheck() {
         if (detection) {
             const result = getFaceDirection(detection.landmarks);
             const currentDir = result.dir;
-            const currentRatio = result.ratio.toFixed(2);
+            const currentRatio = result.ratio.toFixed(2); // デバッグ用
 
             // ▼ Step 1: まず正面を向く
             if (livenessState === 0) {
@@ -296,6 +297,7 @@ function startHeadTurnCheck() {
                 }
                 
                 if (currentDir === 'center') {
+                    // 正面を確認できたら、次の指示をランダムに決定
                     livenessState = 1;
                     targetDirection = Math.random() < 0.5 ? 'right' : 'left';
                 }
@@ -303,28 +305,32 @@ function startHeadTurnCheck() {
             // ▼ Step 2: 指定された方向を向く
             else if (livenessState === 1) {
                 const dirText = targetDirection === 'right' ? '👉 右' : '👈 左';
-                const targetVal = targetDirection === 'right' ? '0.2以下' : '0.8以上';
+                const targetVal = targetDirection === 'right' ? '0.2以下' : '0.8以上'; // 厳しい閾値
 
                 if(msgEl) {
                     msgEl.textContent = `${dirText} を向いて！ (${currentRatio} → ${targetVal})`;
-                    msgEl.style.color = "#e83e8c"; 
+                    msgEl.style.color = "#e83e8c"; // 目立つ色
                     msgEl.style.fontWeight = "bold";
                 }
 
+                // 指示通り向いたか？
                 if (currentDir === targetDirection) {
                     livenessState = 2; // 完了
                 }
             }
-            // ▼ 完了
+            // ▼ Step 3: 完了 -> ボタン有効化
             else if (livenessState === 2) {
+                // ループを停止（これ重要！ボタン状態を上書きさせないため）
+                clearInterval(checkInInterval);
+
                 if(msgEl) {
-                    msgEl.textContent = "✅ 生体確認OK！出席ボタンを押してください";
+                    msgEl.textContent = "✅ 生体確認OK！ボタンを押して認証してください";
                     msgEl.style.color = "green";
                 }
-                if (btn.disabled) {
-                    const koma = document.getElementById('currentKomaId').value;
-                    if (koma) btn.disabled = false;
-                }
+                
+                // ここで初めてボタンを押せるようにする
+                const koma = document.getElementById('currentKomaId').value;
+                if (koma) btn.disabled = false;
             }
 
         } else {
@@ -376,60 +382,32 @@ function setupEvents(sid) {
         }
     };
 
+    // ★重要修正箇所: ボタンクリックイベント
     document.getElementById('checkInButton').onclick = async () => {
         const btn = document.getElementById('checkInButton');
         const msg = document.getElementById('checkinMessage');
+        
+        // 1. 即座にボタンを無効化（連打防止）
+        btn.disabled = true;
+        btn.textContent = '認証中...'; // 表示も変える
+
         const cid = document.getElementById('currentCourseId').value;
         const koma = document.getElementById('currentKomaId').value;
         
-        if(msg) msg.style.display = 'block';
-        btn.disabled = true;
-        btn.textContent = '処理中...';
-
-        if (!cid) { 
-            msg.textContent = "⚠️ 現在の時間は授業が設定されていません"; 
-            btn.disabled = false; btn.textContent = '出席する'; return; 
-        }
-        if (!koma) { 
-            msg.textContent = "⚠️ 現在は打刻可能な時間帯ではありません"; 
-            btn.disabled = false; btn.textContent = '出席する'; return; 
-        }
-
         if (!cachedLocation) {
-            msg.textContent = "⚠️ 位置情報が取得できていません。";
-            alert("位置情報が確認できませんでした。\n学校の範囲内にいることを確認し、再読み込みしてください。");
+            alert("位置情報が確認できませんでした。");
+            // エラー時のみボタンを復活させる
             btn.disabled = false; btn.textContent = '出席する'; return;
         }
 
-        const timeDiff = Date.now() - cachedLocation.timestamp;
-        if (timeDiff > LOCATION_VALID_DURATION) {
-            msg.textContent = "⚠️ 位置情報の有効期限切れです。";
-            alert("位置情報の取得から時間が経過しすぎています。\n再読み込みして、最新の位置情報を取得してください。");
-            cachedLocation = null;
-            initLocationCheck();
-            btn.disabled = false; btn.textContent = '出席する'; return;
+        if(msg) {
+            msg.style.display = 'block';
+            msg.textContent = "サーバー照合中...";
         }
-
-        if(msg) msg.textContent = "登録状況を確認中...";
-        try {
-            const today = new Date().toISOString().split('T')[0];
-            const checkRes = await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${today}&end_date=${today}`);
-            const checkData = await checkRes.json();
-            
-            if (checkData.success) {
-                const duplicate = checkData.records.find(r => r.koma == koma);
-                if (duplicate) {
-                    const statusText = duplicate.status_text || '登録済';
-                    const courseName = duplicate.course_name || '不明な授業';
-                    msg.textContent = `⚠️ このコマは既に「${statusText}」です`;
-                    alert(`このコマ(${koma}限)は既に登録済みです。\n(${courseName} で ${statusText})`);
-                    btn.disabled = false; btn.textContent = '出席する'; return; 
-                }
-            }
-        } catch(e) { console.error("Duplicate check error:", e); }
 
         try {
             if(msg) msg.textContent = "顔解析中...";
+            // ここで再度、現在の顔を取得して送信する
             const descriptor = await getFaceDescriptor('videoCheckin');
             if (!descriptor) { 
                 msg.textContent = "❌ 顔が見つかりません"; 
@@ -451,17 +429,21 @@ function setupEvents(sid) {
                 msg.textContent = `✅ ${ret.message}`;
                 alert(ret.message);
                 loadStudentStats();
+                
+                // 成功したらボタンは「無効のまま」でOK（連打防止＆完了表示）
                 if(checkInInterval) clearInterval(checkInInterval);
                 btn.disabled = true;
                 btn.textContent = '登録完了';
                 btn.style.backgroundColor = "#28a745";
             } else {
                 msg.textContent = `❌ ${ret.message}`;
+                // 認証失敗（他人判定など）の場合は、再トライできるように戻す
                 btn.disabled = false;
                 btn.textContent = '出席する';
             }
         } catch(e) { 
             console.error(e); msg.textContent = "通信または処理エラー"; 
+            // エラー時も戻す
             btn.disabled = false; btn.textContent = '出席する';
         } 
     };
