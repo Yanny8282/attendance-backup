@@ -190,8 +190,8 @@ function getFaceDirection(landmarks) {
     // ratio > 0.6 : 右向き (画面上の右、つまりユーザーにとっての左)
     
     // ユーザーにとっての方向で返します
-    if (ratio < 0.4) return 'right'; // ユーザーの右
-    if (ratio > 0.6) return 'left';  // ユーザーの左
+    if (ratio < 0.2) return 'right'; // ユーザーの右
+    if (ratio > 0.8) return 'left';  // ユーザーの左
     return 'center';
 }
 
