@@ -28,4 +28,4 @@ EMAIL_CONFIG = {
 # 顔認証の閾値 (0.0〜1.0)
 # クライアント側(face-api)のDescriptor間のユークリッド距離
 # 0.6が一般的ですが、誤検知を防ぐため少し厳しめに設定
-FACE_MATCH_THRESHOLD = 0.45
+FACE_MATCH_THRESHOLD = 0.3

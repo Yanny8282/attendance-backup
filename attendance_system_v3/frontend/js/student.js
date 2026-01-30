@@ -10,6 +10,10 @@ let cachedLocation = null;
 let livenessState = 0; // 0:正面確認, 1:指示待ち/動作確認, 2:完了
 let targetDirection = ''; // 'left' or 'right'
 
+// ★顔検出の厳しさ設定 (0.5 -> 0.8)
+// これにより、はっきり顔が映っていないと検知されなくなります
+const FACE_OPTS = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.8 });
+
 // 位置情報の有効期限 (10分)
 const LOCATION_VALID_DURATION = 10 * 60 * 1000;
 
@@ -159,7 +163,8 @@ async function getFaceDescriptor(vidId) {
     if (!faceapi.nets.ssdMobilenetv1.params) return null;
     if (video.paused || video.ended || !video.srcObject) return null;
     
-    const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+    // ★FACE_OPTS(minConfidence:0.8)を適用
+    const detection = await faceapi.detectSingleFace(video, FACE_OPTS).withFaceLandmarks().withFaceDescriptor();
     if (!detection) return null;
     return Array.from(detection.descriptor); 
 }
@@ -262,7 +267,7 @@ async function autoSelectCourse() {
     } catch(e) { console.error(e); }
 }
 
-// ★修正: 首振り検知ロジック (0.2/0.8版)
+// ★首振り検知ロジック (0.2/0.8版)
 function startHeadTurnCheck() {
     const video = document.getElementById('videoCheckin');
     const msgEl = document.getElementById('checkinMessage'); 
@@ -282,7 +287,8 @@ function startHeadTurnCheck() {
     checkInInterval = setInterval(async () => {
         if (!faceapi.nets.faceLandmark68Net.params || video.paused || video.ended) return;
         
-        const detection = await faceapi.detectSingleFace(video).withFaceLandmarks();
+        // ★修正: FACE_OPTS使用
+        const detection = await faceapi.detectSingleFace(video, FACE_OPTS).withFaceLandmarks();
         
         if (detection) {
             const result = getFaceDirection(detection.landmarks);
@@ -305,15 +311,14 @@ function startHeadTurnCheck() {
             // ▼ Step 2: 指定された方向を向く
             else if (livenessState === 1) {
                 const dirText = targetDirection === 'right' ? '👉 右' : '👈 左';
-                const targetVal = targetDirection === 'right' ? '0.2以下' : '0.8以上'; // 厳しい閾値
+                const targetVal = targetDirection === 'right' ? '0.2以下' : '0.8以上';
 
                 if(msgEl) {
                     msgEl.textContent = `${dirText} を向いて！ (${currentRatio} → ${targetVal})`;
-                    msgEl.style.color = "#e83e8c"; // 目立つ色
+                    msgEl.style.color = "#e83e8c"; 
                     msgEl.style.fontWeight = "bold";
                 }
 
-                // 指示通り向いたか？
                 if (currentDir === targetDirection) {
                     livenessState = 2; // 完了
                 }
@@ -335,7 +340,7 @@ function startHeadTurnCheck() {
 
         } else {
             if(msgEl) {
-                msgEl.textContent = "❌ 顔が見つかりません";
+                msgEl.textContent = "❌ 顔が見つかりません（または不鮮明）";
                 msgEl.style.color = "red";
             }
             btn.disabled = true;
@@ -356,6 +361,7 @@ function setupEvents(sid) {
         btn.disabled = true;
         btn.textContent = '登録処理中...';
         try {
+            // ★修正: 登録時も厳しくチェック
             const descriptor = await getFaceDescriptor('videoRegister');
             if (!descriptor) { 
                 alert("顔が検出されません。カメラを見てください。"); 
@@ -382,21 +388,19 @@ function setupEvents(sid) {
         }
     };
 
-    // ★重要修正箇所: ボタンクリックイベント
     document.getElementById('checkInButton').onclick = async () => {
         const btn = document.getElementById('checkInButton');
         const msg = document.getElementById('checkinMessage');
         
-        // 1. 即座にボタンを無効化（連打防止）
-        btn.disabled = true;
-        btn.textContent = '認証中...'; // 表示も変える
+        // ★修正: 即座にボタンを無効化（連打防止）
+        btn.disabled = true; 
+        btn.textContent = '認証中...';
 
         const cid = document.getElementById('currentCourseId').value;
         const koma = document.getElementById('currentKomaId').value;
         
         if (!cachedLocation) {
             alert("位置情報が確認できませんでした。");
-            // エラー時のみボタンを復活させる
             btn.disabled = false; btn.textContent = '出席する'; return;
         }
 
@@ -407,7 +411,7 @@ function setupEvents(sid) {
 
         try {
             if(msg) msg.textContent = "顔解析中...";
-            // ここで再度、現在の顔を取得して送信する
+            // ★修正: 厳格な設定で顔データを取得
             const descriptor = await getFaceDescriptor('videoCheckin');
             if (!descriptor) { 
                 msg.textContent = "❌ 顔が見つかりません"; 
@@ -430,20 +434,17 @@ function setupEvents(sid) {
                 alert(ret.message);
                 loadStudentStats();
                 
-                // 成功したらボタンは「無効のまま」でOK（連打防止＆完了表示）
                 if(checkInInterval) clearInterval(checkInInterval);
-                btn.disabled = true;
+                btn.disabled = true; 
                 btn.textContent = '登録完了';
                 btn.style.backgroundColor = "#28a745";
             } else {
                 msg.textContent = `❌ ${ret.message}`;
-                // 認証失敗（他人判定など）の場合は、再トライできるように戻す
-                btn.disabled = false;
+                btn.disabled = false; 
                 btn.textContent = '出席する';
             }
         } catch(e) { 
             console.error(e); msg.textContent = "通信または処理エラー"; 
-            // エラー時も戻す
             btn.disabled = false; btn.textContent = '出席する';
         } 
     };
