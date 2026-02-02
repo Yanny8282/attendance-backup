@@ -312,8 +312,8 @@ def check_in():
         status_text = STATUS_NAMES.get(st_id, "出席")
         try:
             rate, _, _, s_info = calculate_attendance_rate(sid)
-            if rate < 80.0 and s_info and s_info['email']:
-                send_email(s_info['email'], "【警告】出席率低下", f"{s_info['student_name']} さん\n出席率が{rate}%です。\n80%を下回りました。")
+            if rate < 90.0 and s_info and s_info['email']:
+                send_email(s_info['email'], "【警告】出席率低下", f"{s_info['student_name']} さん\n出席率が{rate}%です。\n90%を下回りました。")
         except: pass
         return jsonify({'success': True, 'message': f'{koma}限 {c_name} ({status_text}) として登録しました'})
     except Exception as e:
