@@ -17,6 +17,8 @@ import traceback
 import re
 import threading
 import time
+import csv
+import io
 
 # ==========================================
 # ▼ フォルダ位置の設定
@@ -35,10 +37,10 @@ CORS(app)
 # ==========================================
 # ▼ Basic認証の設定
 # ==========================================
-app.config['BASIC_AUTH_USERNAME'] = 'admin'
-app.config['BASIC_AUTH_PASSWORD'] = 'sotsuken2026'
-app.config['BASIC_AUTH_FORCE'] = True
-basic_auth = BasicAuth(app)
+#app.config['BASIC_AUTH_USERNAME'] = 'admin'
+#app.config['BASIC_AUTH_PASSWORD'] = 'sotsuken2026'
+#app.config['BASIC_AUTH_FORCE'] = True
+#basic_auth = BasicAuth(app)
 
 # ==========================================
 # ▼ 定数・設定
@@ -552,6 +554,62 @@ def chat_history():
     execute_query("UPDATE chat_messages SET is_read=1 WHERE sender_id=%s AND receiver_id=%s AND is_read=0", (u2, u1))
     res = execute_query("SELECT sender_id, message_content, DATE_FORMAT(timestamp, '%%Y-%%m-%%d %%H:%%i') as time FROM chat_messages WHERE (sender_id=%s AND receiver_id=%s) OR (sender_id=%s AND receiver_id=%s) ORDER BY timestamp ASC", (u1,u2,u2,u1), fetch=True)
     return jsonify({'success': True, 'messages': res})
+
+# 13. ★新規追加: 生徒一括登録API (CSV読み込み)
+@app.route(f'{API_BASE_URL}/admin/register_bulk_students', methods=['POST'])
+def register_bulk_students():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': 'ファイルが見つかりません'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'ファイルが選択されていません'}), 400
+
+    try:
+        # CSVファイルをテキストモードで読み込む
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_input = csv.DictReader(stream)
+        
+        count = 0
+        
+        # 必須カラム
+        required_cols = ['student_id', 'student_name', 'class_id', 'email', 'password']
+        
+        for row in csv_input:
+            if not all(key in row for key in required_cols):
+                continue 
+
+            s_id = row['student_id']
+            name = row['student_name']
+            cls = row['class_id']
+            mail = row['email']
+            pw = row['password']
+            
+            # 性別・生年月日を取得（CSVにない場合はNone）
+            gen = row.get('gender')
+            bd = row.get('birthday')
+
+            # studentsテーブルへの保存 (性別・生年月日を追加)
+            # UPSERT: 重複時は更新
+            sql = """
+                INSERT INTO students 
+                (student_id, student_name, class_id, gender, birthday, email) 
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE 
+                student_name=%s, class_id=%s, gender=%s, birthday=%s, email=%s
+            """
+            params = (s_id, name, cls, gen, bd, mail, name, cls, gen, bd, mail)
+            
+            if execute_query(sql, params):
+                # student_authテーブル (パスワード) も更新
+                execute_query("INSERT INTO student_auth (student_id, password) VALUES (%s, %s) ON DUPLICATE KEY UPDATE password=%s", (s_id, pw, pw))
+                count += 1
+
+        return jsonify({'success': True, 'message': f'{count}件のデータを登録・更新しました'})
+
+    except Exception as e:
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'message': f'エラーが発生しました: {str(e)}'}), 500
 
 # 起動時に一度だけスレッドを開始する仕組みを入れる
 if not any(t.name == 'AutoAbsentThread' for t in threading.enumerate()):

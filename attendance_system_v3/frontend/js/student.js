@@ -10,7 +10,7 @@ let cachedLocation = null;
 let livenessState = 0; // 0:正面確認, 1:指示待ち/動作確認, 2:完了
 let targetDirection = ''; // 'left' or 'right'
 
-// 顔検出設定 (0.8以上の信頼度が必要)
+// ★顔検出設定 (0.8以上の信頼度が必要)
 const FACE_OPTS = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.8 });
 
 const LOCATION_VALID_DURATION = 10 * 60 * 1000;
