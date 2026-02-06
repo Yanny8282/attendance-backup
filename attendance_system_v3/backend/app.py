@@ -64,6 +64,14 @@ AUTO_ABSENT_TRIGGER_TIMES = {
 # ==========================================
 # ▼ ヘルパー関数
 # ==========================================
+# ★追加: 常に日本時間(JST)を取得する関数
+def get_jst_now():
+    return datetime.datetime.utcnow() + timedelta(hours=9)
+
+# ★追加: 今日の日付(JST)を取得する関数
+def get_jst_today_str():
+    return get_jst_now().strftime('%Y-%m-%d')
+
 @app.route('/')
 def index():
     return redirect('/html/index.html')
@@ -103,7 +111,7 @@ def calculate_attendance_rate(student_id):
         return 0, 0, {}, None
 
     class_id = s_info[0]['class_id']
-    today = datetime.date.today().isoformat()
+    today = get_jst_today_str()
 
     sch_res = execute_query("SELECT COUNT(*) as total FROM class_schedule WHERE class_id=%s AND schedule_date <= %s", (class_id, today), fetch=True)
     total_classes = sch_res[0]['total'] if sch_res else 0
@@ -141,12 +149,14 @@ def auto_mark_absent_loop():
     print("★ 自動「記録なし」登録システム: 起動しました")
     while True:
         try:
-            now = datetime.datetime.now()
+            # ★修正: JSTを使用
+            now = get_jst_now()
             today_str = now.strftime('%Y-%m-%d')
             
             for koma, trigger_time in AUTO_ABSENT_TRIGGER_TIMES.items():
                 trigger_dt = datetime.datetime.strptime(f"{today_str} {trigger_time}", '%Y-%m-%d %H:%M')
                 
+                # JST同士で比較
                 if now > trigger_dt:
                     sql = """
                     INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, reason)
@@ -230,7 +240,9 @@ def register_face():
         auth = execute_query("SELECT registration_expiry FROM student_auth WHERE student_id=%s", (sid,), fetch=True)
         if not auth: return jsonify({'success': False, 'message': '生徒不明'}), 400
         expiry = auth[0].get('registration_expiry')
-        if not expiry or expiry < datetime.datetime.now():
+        
+        # ★修正: JSTで比較
+        if not expiry or expiry < get_jst_now():
              return jsonify({'success': False, 'message': '登録の許可期限が切れています。先生に許可をもらってください。'}), 403
         execute_query("UPDATE student_auth SET face_encoding=%s WHERE student_id=%s", (json.dumps(desc), sid))
         return jsonify({'success': True})
@@ -242,7 +254,8 @@ def allow_face_registration():
     try:
         d = request.json
         sid = d.get('student_id')
-        expiry = datetime.datetime.now() + timedelta(minutes=5)
+        # ★修正: JSTで期限設定
+        expiry = get_jst_now() + timedelta(minutes=5)
         execute_query("UPDATE student_auth SET registration_expiry=%s WHERE student_id=%s", (expiry, sid))
         return jsonify({'success': True, 'expiry': expiry.strftime('%H:%M:%S')})
     except Exception as e:
@@ -288,10 +301,13 @@ def check_in():
         if not auth or not auth[0]['face_encoding']: return jsonify({'success': False, 'message': '顔未登録'}), 400
         if calc_face_distance(desc, json.loads(auth[0]['face_encoding'])) > FACE_MATCH_THRESHOLD:
             return jsonify({'success': False, 'message': '顔不一致'}), 401
-        now = datetime.datetime.now()
-        today = datetime.date.today().isoformat()
+        
+        # ★修正: JSTを使用
+        now = get_jst_now()
+        today = now.strftime('%Y-%m-%d')
         start_str = PERIOD_START_TIMES.get(koma, "00:00")
-        start_dt = datetime.datetime.combine(datetime.date.today(), datetime.datetime.strptime(start_str, "%H:%M").time())
+        start_dt = datetime.datetime.strptime(f"{today} {start_str}", '%Y-%m-%d %H:%M')
+
         if now < start_dt - timedelta(minutes=5):
             wait = int((start_dt - timedelta(minutes=5) - now).total_seconds()/60)+1
             return jsonify({'success': False, 'message': f'開始5分前までお待ちください'}), 400
@@ -383,7 +399,9 @@ def update_attendance_status():
     if execute_query("SELECT record_id FROM attendance_records WHERE student_id=%s AND attendance_date=%s AND koma=%s", (sid, dt, k), fetch=True):
         execute_query("UPDATE attendance_records SET status_id=%s, course_id=%s WHERE student_id=%s AND attendance_date=%s AND koma=%s", (st, cid, sid, dt, k))
     else:
-        execute_query("INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, attendance_time) VALUES (%s,%s,%s,%s,%s,%s)", (sid, dt, cid, k, st, datetime.datetime.now().strftime('%H:%M:%S')))
+        # ★修正: JSTを使用
+        now_time = get_jst_now().strftime('%H:%M:%S')
+        execute_query("INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, attendance_time) VALUES (%s,%s,%s,%s,%s,%s)", (sid, dt, cid, k, st, now_time))
     return jsonify({'success': True})
 
 @app.route(f'{API_BASE_URL}/delete_attendance_record', methods=['POST'])
@@ -400,7 +418,6 @@ def get_student_list():
     if cls and cls!='all': q+=" WHERE s.class_id=%s"; p=(cls,)
     res = execute_query(q, p, fetch=True)
     
-    # ★追加: 各生徒の出席率を計算してレスポンスに含める
     for r in res:
         r['birthday'] = r['birthday'].isoformat() if r['birthday'] else ''
         rate, _, _, _ = calculate_attendance_rate(r['student_id'])
@@ -485,7 +502,8 @@ def get_monthly_schedule():
 
 @app.route(f'{API_BASE_URL}/get_today_schedule')
 def get_today_schedule():
-    res = execute_query("SELECT cs.koma, cs.course_id, c.course_name FROM class_schedule cs JOIN courses c ON cs.course_id=c.course_id WHERE cs.class_id=%s AND cs.schedule_date=%s", (request.args.get('class_id'), datetime.date.today().isoformat()), fetch=True)
+    # ★修正: JSTを使用
+    res = execute_query("SELECT cs.koma, cs.course_id, c.course_name FROM class_schedule cs JOIN courses c ON cs.course_id=c.course_id WHERE cs.class_id=%s AND cs.schedule_date=%s", (request.args.get('class_id'), get_jst_today_str()), fetch=True)
     return jsonify({'success': True, 'schedule': res})
 
 @app.route(f'{API_BASE_URL}/update_schedule_date', methods=['POST'])
@@ -545,12 +563,16 @@ def chat_history():
     u1, u2 = request.args.get('user1'), request.args.get('user2')
     execute_query("UPDATE chat_messages SET is_read=1 WHERE sender_id=%s AND receiver_id=%s AND is_read=0", (u2, u1))
     
-    # ★修正: 日付フォーマットをSQLではなくPython側で行うように変更 (MySQLの日付バグ回避)
     res = execute_query("SELECT sender_id, message_content, timestamp FROM chat_messages WHERE (sender_id=%s AND receiver_id=%s) OR (sender_id=%s AND receiver_id=%s) ORDER BY timestamp ASC", (u1,u2,u2,u1), fetch=True)
     
     for r in res:
-        r['time'] = r['timestamp'].strftime('%Y-%m-%d %H:%M') if r['timestamp'] else ''
-        del r['timestamp'] # JSONシリアライズエラー防止
+        # ★修正: DB時刻(UTC)をJST(+9h)に変換してフォーマット
+        if r['timestamp']:
+            jst_dt = r['timestamp'] + timedelta(hours=9)
+            r['time'] = jst_dt.strftime('%Y-%m-%d %H:%M')
+        else:
+            r['time'] = ''
+        del r['timestamp']
 
     return jsonify({'success': True, 'messages': res})
 
@@ -567,24 +589,19 @@ def register_bulk_students():
         return jsonify({'success': False, 'message': 'ファイルが選択されていません'}), 400
 
     try:
-        # 1. ファイルの中身をバイナリとして読み込む
         file_content = file.stream.read()
         text_data = ""
-        
-        # 2. 文字コード判定 (UTF-8(BOM付き含む) -> Shift-JIS の順で試す)
         try:
             text_data = file_content.decode('utf-8-sig')
         except UnicodeDecodeError:
             try:
-                text_data = file_content.decode('cp932') # Windows Excel用
+                text_data = file_content.decode('cp932')
             except UnicodeDecodeError:
                 return jsonify({'success': False, 'message': '文字コードエラー: CSVをUTF-8またはShift-JISで保存してください'}), 400
 
-        # 3. CSVとして解析
         stream = io.StringIO(text_data, newline=None)
         csv_input = csv.DictReader(stream)
         
-        # 日本語ヘッダー対応マップ
         header_map = {
             '学籍番号': 'student_id',
             '氏名': 'student_name', '名前': 'student_name',
@@ -599,7 +616,6 @@ def register_bulk_students():
         skipped = 0
         
         for i, row in enumerate(csv_input):
-            # キーの正規化
             normalized_row = {}
             for k, v in row.items():
                 k_clean = k.strip() if k else ''
@@ -614,7 +630,7 @@ def register_bulk_students():
             name = normalized_row['student_name']
             cls = normalized_row.get('class_id', '')
             mail = normalized_row.get('email', '')
-            pw = normalized_row.get('password', s_id) # パスワードがない場合は学籍番号を使用
+            pw = normalized_row.get('password', s_id)
             gen = normalized_row.get('gender', None)
             bd = normalized_row.get('birthday', None)
             
@@ -622,7 +638,6 @@ def register_bulk_students():
                 skipped += 1
                 continue
 
-            # studentsテーブル (UPSERT)
             sql = """
                 INSERT INTO students 
                 (student_id, student_name, class_id, gender, birthday, email) 
@@ -648,7 +663,6 @@ def register_bulk_students():
         print(traceback.format_exc())
         return jsonify({'success': False, 'message': f'エラー: {str(e)}'}), 500
 
-# 起動時に一度だけスレッドを開始する仕組みを入れる
 if not any(t.name == 'AutoAbsentThread' for t in threading.enumerate()):
     t = threading.Thread(target=auto_mark_absent_loop, daemon=True, name='AutoAbsentThread')
     t.start()
