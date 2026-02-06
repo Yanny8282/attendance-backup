@@ -199,7 +199,7 @@ function setupEvents() {
 
     bind('showCalendarBtn', loadCalendar);
     bind('stModalSave', saveStatus);
-    bind('stModalDelete', deleteStatus); // 削除ボタン
+    bind('stModalDelete', deleteStatus);
     bind('teacherSendChatButton', sendChat);
     bind('broadcastChatButton', openBroadcast);
     bind('submitBroadcast', sendBroadcast);
@@ -777,7 +777,7 @@ async function deleteTeacher() {
 }
 
 // ==========================================
-// ▼ 欠席届
+// ▼ 欠席届 (★修正: グループ化表示)
 // ==========================================
 async function loadAbsence() {
     const d = document.getElementById('absenceDateFilter').value;
@@ -786,20 +786,78 @@ async function loadAbsence() {
     tb.innerHTML = '';
     
     const res = await (await fetch(`${API_BASE_URL}/get_absence_reports?date=${d}&class_id=${c}`)).json();
-    if (res.reports) {
+    if (res.reports && res.reports.length > 0) {
+        // グループ化処理
+        const groups = {};
         res.reports.forEach(r => {
-            tb.innerHTML += `<tr>
-                <td>${r.attendance_date}</td>
-                <td>${r.student_name}</td>
-                <td>${r.koma}限</td>
-                <td>${r.reason}</td>
-                <td>${r.status_name}</td>
-            </tr>`;
+            const key = `${r.attendance_date}_${r.student_id}`;
+            if(!groups[key]) {
+                groups[key] = {
+                    date: r.attendance_date,
+                    name: r.student_name,
+                    cid: r.class_id,
+                    items: []
+                };
+            }
+            groups[key].items.push(r);
         });
+
+        // HTML生成
+        Object.keys(groups).sort().reverse().forEach((key, idx) => {
+            const g = groups[key];
+            const rowId = `abs-detail-${idx}`;
+            
+            // 概要（例: 3件の連絡 (1限:欠席, 2限:遅刻)）
+            const summary = g.items.map(i => `${i.koma}限:${i.status_name}`).join(', ');
+            
+            // 親行
+            const parentRow = `
+                <tr class="parent-row" onclick="toggleAbsenceDetail('${rowId}', this)">
+                    <td>${g.date}</td>
+                    <td>${g.name}</td>
+                    <td>${g.cid}</td>
+                    <td>${g.items.length}件の連絡 (${summary})</td>
+                    <td style="text-align:center;"><span class="toggle-icon">▼</span></td>
+                </tr>`;
+            
+            // 詳細行（内部テーブル）
+            let detailHtml = `
+                <tr id="${rowId}" class="detail-row" style="display:none;">
+                    <td colspan="5" class="detail-cell">
+                        <table class="nested-table">
+                            <thead><tr><th>時限</th><th>授業名</th><th>種別</th><th>理由</th></tr></thead>
+                            <tbody>`;
+            
+            g.items.forEach(item => {
+                detailHtml += `
+                    <tr>
+                        <td>${item.koma}限</td>
+                        <td>${item.course_name}</td>
+                        <td style="font-weight:bold;">${item.status_name}</td>
+                        <td>${item.reason}</td>
+                    </tr>`;
+            });
+            detailHtml += `</tbody></table></td></tr>`;
+            
+            tb.innerHTML += parentRow + detailHtml;
+        });
+
     } else {
         tb.innerHTML = '<tr><td colspan="5">なし</td></tr>';
     }
 }
+
+// ★追加: 詳細行の開閉トグル関数
+window.toggleAbsenceDetail = (rowId, btn) => {
+    const row = document.getElementById(rowId);
+    if (row.style.display === 'none') {
+        row.style.display = 'table-row';
+        btn.classList.add('expanded');
+    } else {
+        row.style.display = 'none';
+        btn.classList.remove('expanded');
+    }
+};
 
 // ==========================================
 // ▼ チャット
@@ -807,7 +865,6 @@ async function loadAbsence() {
 async function loadChatStudents() {
     const c = document.getElementById('chatClassFilter').value;
     const s = document.getElementById('chatStudentSelect');
-    // ★修正: 「生徒を選択」を無効化して選択不可にする
     s.innerHTML = '<option value="" disabled selected>生徒を選択</option>';
     const res = await (await fetch(`${API_BASE_URL}/get_student_list?class_id=${c}`)).json();
     if (res.students) {

@@ -9,6 +9,12 @@
     background-color: #f1f3f5;
 }
 
+/* 欠席届テーブル: 親行はクリック可能に */
+#absenceTable tbody tr.parent-row:hover {
+    background-color: #e2e6ea;
+    cursor: pointer;
+}
+
 .action-button {
     padding: 4px 8px;
     font-size: 0.85rem;
@@ -51,13 +57,13 @@
 .mini-badge:hover { opacity: 0.8; }
 
 /* =========================================
-   ★追加: カレンダーグリッド表示用スタイル
+   カレンダーグリッド表示用スタイル
    ========================================= */
 .month-calendar {
     display: grid;
-    grid-template-columns: repeat(7, 1fr); /* 7等分 */
+    grid-template-columns: repeat(7, 1fr);
     gap: 2px;
-    background-color: #ddd; /* 枠線の色代わり */
+    background-color: #ddd;
     border: 1px solid #ccc;
 }
 
@@ -85,7 +91,6 @@
     border-bottom: 1px solid #eee;
 }
 
-/* カレンダー内のバッジ */
 .event-badge {
     font-size: 0.75rem;
     padding: 2px 4px;
@@ -99,6 +104,44 @@
 .status-absent  { background-color: #f8d7da; color: #721c24; }
 .status-early   { background-color: #e2e3e5; color: #383d41; }
 .bg-norecord    { background-color: #6c757d; color: #fff; }
+
+/* =========================================
+   ★追加: 欠席届 展開詳細テーブル
+   ========================================= */
+.detail-row {
+    background-color: #f8f9fa;
+}
+.detail-cell {
+    padding: 10px 20px !important;
+}
+/* 内部テーブル */
+.nested-table {
+    width: 95%;
+    margin: 0 auto;
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.nested-table th {
+    background-color: #e9ecef;
+    font-size: 0.85rem;
+    padding: 8px;
+}
+.nested-table td {
+    font-size: 0.9rem;
+    border-bottom: 1px solid #eee;
+    padding: 8px;
+}
+.toggle-icon {
+    display: inline-block;
+    transition: transform 0.2s;
+    font-size: 0.8rem;
+    color: #007bff;
+}
+/* 展開時にアイコンを回転 */
+.expanded .toggle-icon {
+    transform: rotate(180deg);
+}
 
 /* =========================================
    モーダルウィンドウ
@@ -127,7 +170,7 @@
 }
 
 /* =========================================
-   チャット管理画面 (Flexboxレイアウト)
+   チャット管理画面
    ========================================= */
 .chat-container {
     display: flex;
@@ -213,7 +256,6 @@
     margin-left: 5px;
 }
 
-/* チャット吹き出し */
 .message-bubble {
     max-width: 70%;
     padding: 10px 14px;

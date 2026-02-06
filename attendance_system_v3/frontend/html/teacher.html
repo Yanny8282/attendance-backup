@@ -16,7 +16,6 @@
         .btn-reset { background-color: #ffc107; color: black; }
         .btn-permission:hover { background-color: #138496; }
         .btn-reset:hover { background-color: #e0a800; }
-        /* カレンダー上部のマージン */
         #calendarContainer { margin-top: 15px; }
     </style>
 </head>
@@ -34,7 +33,8 @@
             <button class="tab-button active" data-tab="realtime">リアルタイム確認</button>
             <button class="tab-button" data-tab="schedule-mgr">時間割管理</button>
             <button class="tab-button" data-tab="student-attendance">生徒別出席簿</button>
-            <button class="tab-button" data-tab="absence-reports">欠席届</button> <button class="tab-button" data-tab="chat-mgr">チャット連絡</button>
+            <button class="tab-button" data-tab="absence-reports">欠席届</button>
+            <button class="tab-button" data-tab="chat-mgr">チャット連絡</button>
             <button class="tab-button" data-tab="student-crud">生徒管理</button>
             <button class="tab-button" data-tab="teacher-crud" id="tab-btn-teacher-crud">教員管理</button>
         </div>
@@ -108,7 +108,7 @@
                 <button id="refreshAbsenceReports">更新</button>
             </div>
             <table id="absenceTable">
-                <thead><tr><th>日付</th><th>氏名</th><th>時限</th><th>理由</th><th>種別</th></tr></thead>
+                <thead><tr><th>日付</th><th>氏名</th><th>クラス</th><th>概要</th><th style="width:50px;">展開</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
@@ -220,7 +220,7 @@
     </div>
 
     <div id="broadcastModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.5); width:400px; z-index:10000;">
-        <h3>📢 一括連絡</h3>
+        <h3>📢 一斉連絡</h3>
         <label>送信先クラス:</label>
         <div id="broadcastClassCheckboxes" style="border:1px solid #ddd; padding:10px; max-height:150px; overflow-y:scroll; margin-bottom:15px;"></div>
         <textarea id="broadcastInput" rows="5" style="width:100%; margin-bottom:15px;"></textarea>
