@@ -129,6 +129,7 @@ function setupEvents() {
             if (t === 'student-attendance') loadCalStudents();
             if (t === 'student-crud') loadStudentList();
             if (t === 'teacher-crud') loadTeacherList();
+            if (t === 'absence-reports') loadAbsence(); // ★欠席届タブ用
         });
     });
     const bind = (id, func) => { 
@@ -309,6 +310,7 @@ async function loadCalendar() {
                 cell += `<div class="event-badge ${cls}" onclick="openStatusModal('${r.student_id}','${dStr}',${r.koma},${r.status_id},${r.course_id})">${r.koma}:${r.status_text}</div>`;
             });
         } else {
+            // 空きコマでも追加できるように
             for(let k=1; k<=4; k++) {
                  cell += `<div style="color:#ccc; font-size:0.7rem; cursor:pointer; text-align:right;" onclick="openStatusModal('${sid}','${dStr}',${k},5,0)">+ ${k}限</div>`;
             }

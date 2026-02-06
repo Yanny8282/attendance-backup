@@ -16,6 +16,7 @@
         .btn-reset { background-color: #ffc107; color: black; }
         .btn-permission:hover { background-color: #138496; }
         .btn-reset:hover { background-color: #e0a800; }
+        /* カレンダー上部のマージン */
         #calendarContainer { margin-top: 15px; }
     </style>
 </head>
@@ -33,7 +34,7 @@
             <button class="tab-button active" data-tab="realtime">リアルタイム確認</button>
             <button class="tab-button" data-tab="schedule-mgr">時間割管理</button>
             <button class="tab-button" data-tab="student-attendance">生徒別出席簿</button>
-            <button class="tab-button" data-tab="chat-mgr">チャット連絡</button>
+            <button class="tab-button" data-tab="absence-reports">欠席届</button> <button class="tab-button" data-tab="chat-mgr">チャット連絡</button>
             <button class="tab-button" data-tab="student-crud">生徒管理</button>
             <button class="tab-button" data-tab="teacher-crud" id="tab-btn-teacher-crud">教員管理</button>
         </div>
@@ -49,17 +50,6 @@
                 <thead>
                     <tr><th>学籍番号</th><th>氏名</th><th>クラス</th><th>授業名</th><th>状態</th><th>打刻時刻</th><th>詳細</th></tr>
                 </thead>
-                <tbody></tbody>
-            </table>
-            
-            <h3 style="margin-top:30px; border-bottom:1px solid #ddd; padding-bottom:5px;">📋 本日の欠席連絡</h3>
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-                <label>日付: <input type="date" id="absenceDateFilter"></label>
-                <label>クラス: <select id="absenceClassFilter"></select></label>
-                <button id="refreshAbsenceReports">表示</button>
-            </div>
-            <table id="absenceTable">
-                <thead><tr><th>日付</th><th>氏名</th><th>時限</th><th>理由</th><th>種別</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
@@ -108,6 +98,19 @@
                 </div>
             </div>
             <div id="calendarContainer"></div>
+        </div>
+
+        <div id="absence-reports" class="tab-content">
+            <h2>📩 欠席連絡一覧</h2>
+            <div style="margin-bottom: 15px;">
+                <label>日付: <input type="date" id="absenceDateFilter"></label>
+                <label>クラス: <select id="absenceClassFilter"><option value="all">全クラス</option></select></label>
+                <button id="refreshAbsenceReports">更新</button>
+            </div>
+            <table id="absenceTable">
+                <thead><tr><th>日付</th><th>氏名</th><th>時限</th><th>理由</th><th>種別</th></tr></thead>
+                <tbody></tbody>
+            </table>
         </div>
 
         <div id="chat-mgr" class="tab-content">

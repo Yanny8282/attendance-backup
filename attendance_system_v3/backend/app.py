@@ -20,9 +20,6 @@ import time
 import csv
 import io
 
-# ==========================================
-# ▼ フォルダ位置の設定
-# ==========================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, '..', 'frontend'))
 
@@ -34,9 +31,6 @@ print("="*40 + "\n")
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
 CORS(app)
 
-# ==========================================
-# ▼ 定数・設定
-# ==========================================
 STATUS_NAMES = {
     1: "出席",
     2: "遅刻",
@@ -45,7 +39,6 @@ STATUS_NAMES = {
     5: "記録なし"
 }
 
-# 授業開始時間
 PERIOD_START_TIMES = { 
     1: "09:10", 
     2: "11:00", 
@@ -53,7 +46,6 @@ PERIOD_START_TIMES = {
     4: "15:15" 
 }
 
-# 自動「記録なし」判定を行う時刻 (授業開始 + 35分)
 AUTO_ABSENT_TRIGGER_TIMES = {
     1: "09:45",
     2: "11:35",
@@ -61,14 +53,10 @@ AUTO_ABSENT_TRIGGER_TIMES = {
     4: "15:50"
 }
 
-# ==========================================
-# ▼ ヘルパー関数
-# ==========================================
-# ★追加: 常に日本時間(JST)を取得する関数
+# JSTヘルパー
 def get_jst_now():
     return datetime.datetime.utcnow() + timedelta(hours=9)
 
-# ★追加: 今日の日付(JST)を取得する関数
 def get_jst_today_str():
     return get_jst_now().strftime('%Y-%m-%d')
 
@@ -104,7 +92,6 @@ def calc_geo_distance(lat1, lon1, lat2, lon2):
 def calc_face_distance(vec1, vec2):
     return np.linalg.norm(np.array(vec1) - np.array(vec2))
 
-# 出席率計算ロジック (遅刻・早退は2/3点)
 def calculate_attendance_rate(student_id):
     s_info = execute_query("SELECT class_id, student_name, email FROM students WHERE student_id=%s", (student_id,), fetch=True)
     if not s_info or not s_info[0]['class_id']:
@@ -142,21 +129,16 @@ def is_admin_request(req_data):
     res = execute_query("SELECT is_admin FROM teachers WHERE teacher_id=%s", (rid,), fetch=True)
     return True if res and res[0].get('is_admin') == 1 else False
 
-# ==========================================
-# ▼ 自動「記録なし」登録スレッド
-# ==========================================
 def auto_mark_absent_loop():
     print("★ 自動「記録なし」登録システム: 起動しました")
     while True:
         try:
-            # ★修正: JSTを使用
             now = get_jst_now()
             today_str = now.strftime('%Y-%m-%d')
             
             for koma, trigger_time in AUTO_ABSENT_TRIGGER_TIMES.items():
                 trigger_dt = datetime.datetime.strptime(f"{today_str} {trigger_time}", '%Y-%m-%d %H:%M')
                 
-                # JST同士で比較
                 if now > trigger_dt:
                     sql = """
                     INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, reason)
@@ -184,10 +166,7 @@ def auto_mark_absent_loop():
             print(f"Auto Mark Error: {e}")
             time.sleep(60)
 
-# ==========================================
-# ▼ API ルート定義
-# ==========================================
-
+# API
 @app.route(f'{API_BASE_URL}/login', methods=['POST'])
 def login():
     try:
@@ -240,8 +219,6 @@ def register_face():
         auth = execute_query("SELECT registration_expiry FROM student_auth WHERE student_id=%s", (sid,), fetch=True)
         if not auth: return jsonify({'success': False, 'message': '生徒不明'}), 400
         expiry = auth[0].get('registration_expiry')
-        
-        # ★修正: JSTで比較
         if not expiry or expiry < get_jst_now():
              return jsonify({'success': False, 'message': '登録の許可期限が切れています。先生に許可をもらってください。'}), 403
         execute_query("UPDATE student_auth SET face_encoding=%s WHERE student_id=%s", (json.dumps(desc), sid))
@@ -254,7 +231,6 @@ def allow_face_registration():
     try:
         d = request.json
         sid = d.get('student_id')
-        # ★修正: JSTで期限設定
         expiry = get_jst_now() + timedelta(minutes=5)
         execute_query("UPDATE student_auth SET registration_expiry=%s WHERE student_id=%s", (expiry, sid))
         return jsonify({'success': True, 'expiry': expiry.strftime('%H:%M:%S')})
@@ -302,7 +278,6 @@ def check_in():
         if calc_face_distance(desc, json.loads(auth[0]['face_encoding'])) > FACE_MATCH_THRESHOLD:
             return jsonify({'success': False, 'message': '顔不一致'}), 401
         
-        # ★修正: JSTを使用
         now = get_jst_now()
         today = now.strftime('%Y-%m-%d')
         start_str = PERIOD_START_TIMES.get(koma, "00:00")
@@ -399,7 +374,6 @@ def update_attendance_status():
     if execute_query("SELECT record_id FROM attendance_records WHERE student_id=%s AND attendance_date=%s AND koma=%s", (sid, dt, k), fetch=True):
         execute_query("UPDATE attendance_records SET status_id=%s, course_id=%s WHERE student_id=%s AND attendance_date=%s AND koma=%s", (st, cid, sid, dt, k))
     else:
-        # ★修正: JSTを使用
         now_time = get_jst_now().strftime('%H:%M:%S')
         execute_query("INSERT INTO attendance_records (student_id, attendance_date, course_id, koma, status_id, attendance_time) VALUES (%s,%s,%s,%s,%s,%s)", (sid, dt, cid, k, st, now_time))
     return jsonify({'success': True})
@@ -502,7 +476,6 @@ def get_monthly_schedule():
 
 @app.route(f'{API_BASE_URL}/get_today_schedule')
 def get_today_schedule():
-    # ★修正: JSTを使用
     res = execute_query("SELECT cs.koma, cs.course_id, c.course_name FROM class_schedule cs JOIN courses c ON cs.course_id=c.course_id WHERE cs.class_id=%s AND cs.schedule_date=%s", (request.args.get('class_id'), get_jst_today_str()), fetch=True)
     return jsonify({'success': True, 'schedule': res})
 
@@ -563,105 +536,72 @@ def chat_history():
     u1, u2 = request.args.get('user1'), request.args.get('user2')
     execute_query("UPDATE chat_messages SET is_read=1 WHERE sender_id=%s AND receiver_id=%s AND is_read=0", (u2, u1))
     
+    # ★日付変換をPython側で実施し、バグを回避
     res = execute_query("SELECT sender_id, message_content, timestamp FROM chat_messages WHERE (sender_id=%s AND receiver_id=%s) OR (sender_id=%s AND receiver_id=%s) ORDER BY timestamp ASC", (u1,u2,u2,u1), fetch=True)
     
     for r in res:
-        # ★修正: DB時刻(UTC)をJST(+9h)に変換してフォーマット
         if r['timestamp']:
-            jst_dt = r['timestamp'] + timedelta(hours=9)
+            jst_dt = r['timestamp'] + timedelta(hours=9) # JST変換
             r['time'] = jst_dt.strftime('%Y-%m-%d %H:%M')
         else:
             r['time'] = ''
-        del r['timestamp']
+        del r['timestamp'] # JSONエラー回避
 
     return jsonify({'success': True, 'messages': res})
 
-# ==========================================
-# ▼ 生徒一括登録API (CSV読み込み)
-# ==========================================
 @app.route(f'{API_BASE_URL}/admin/register_bulk_students', methods=['POST'])
 def register_bulk_students():
-    if 'file' not in request.files:
-        return jsonify({'success': False, 'message': 'ファイルが見つかりません'}), 400
-    
+    if 'file' not in request.files: return jsonify({'success': False, 'message': 'ファイルなし'}), 400
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({'success': False, 'message': 'ファイルが選択されていません'}), 400
-
     try:
-        file_content = file.stream.read()
-        text_data = ""
-        try:
-            text_data = file_content.decode('utf-8-sig')
-        except UnicodeDecodeError:
-            try:
-                text_data = file_content.decode('cp932')
-            except UnicodeDecodeError:
-                return jsonify({'success': False, 'message': '文字コードエラー: CSVをUTF-8またはShift-JISで保存してください'}), 400
-
-        stream = io.StringIO(text_data, newline=None)
+        content = file.stream.read()
+        try: text = content.decode('utf-8-sig')
+        except: text = content.decode('cp932')
+        stream = io.StringIO(text, newline=None)
         csv_input = csv.DictReader(stream)
-        
-        header_map = {
-            '学籍番号': 'student_id',
-            '氏名': 'student_name', '名前': 'student_name',
-            'クラス': 'class_id', 'クラスID': 'class_id',
-            'メール': 'email', 'メールアドレス': 'email', 'Email': 'email',
-            'パスワード': 'password',
-            '性別': 'gender',
-            '生年月日': 'birthday', '誕生日': 'birthday'
-        }
+        header_map = {'学籍番号':'student_id','氏名':'student_name','名前':'student_name','クラス':'class_id','メール':'email','パスワード':'password','性別':'gender','生年月日':'birthday'}
+        count=0
+        for row in csv_input:
+            nrow = {}
+            for k,v in row.items(): nrow[header_map.get(k.strip(), k.strip())] = v.strip()
+            if 'student_id' not in nrow: continue
+            sid=nrow['student_id']; nm=nrow['student_name']; cls=nrow.get('class_id'); mail=nrow.get('email'); pw=nrow.get('password',sid); gen=nrow.get('gender'); bd=nrow.get('birthday')
+            sql="INSERT INTO students (student_id, student_name, class_id, gender, birthday, email) VALUES (%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE student_name=%s, class_id=%s, gender=%s, birthday=%s, email=%s"
+            if execute_query(sql, (sid,nm,cls,gen,bd,mail,nm,cls,gen,bd,mail)):
+                execute_query("INSERT INTO student_auth (student_id, password) VALUES (%s,%s) ON DUPLICATE KEY UPDATE password=%s", (sid,pw,pw))
+                count+=1
+        return jsonify({'success': True, 'message': f'{count}件登録'})
+    except Exception as e: return jsonify({'success': False, 'message': str(e)}), 500
 
-        count = 0
-        skipped = 0
-        
-        for i, row in enumerate(csv_input):
-            normalized_row = {}
-            for k, v in row.items():
-                k_clean = k.strip() if k else ''
-                new_key = header_map.get(k_clean, k_clean)
-                normalized_row[new_key] = v.strip() if v else ''
-
-            if 'student_id' not in normalized_row or 'student_name' not in normalized_row:
-                skipped += 1
-                continue
-
-            s_id = normalized_row['student_id']
-            name = normalized_row['student_name']
-            cls = normalized_row.get('class_id', '')
-            mail = normalized_row.get('email', '')
-            pw = normalized_row.get('password', s_id)
-            gen = normalized_row.get('gender', None)
-            bd = normalized_row.get('birthday', None)
-            
-            if not s_id:
-                skipped += 1
-                continue
-
-            sql = """
-                INSERT INTO students 
-                (student_id, student_name, class_id, gender, birthday, email) 
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE 
-                student_name=%s, class_id=%s, gender=%s, birthday=%s, email=%s
-            """
-            params = (s_id, name, cls, gen, bd, mail, name, cls, gen, bd, mail)
-            
-            if execute_query(sql, params):
-                execute_query("INSERT INTO student_auth (student_id, password) VALUES (%s, %s) ON DUPLICATE KEY UPDATE password=%s", (s_id, pw, pw))
-                count += 1
-            else:
-                skipped += 1
-
-        msg = f'{count}件 登録・更新しました。'
-        if skipped > 0:
-            msg += f' ({skipped}件スキップ)'
-
-        return jsonify({'success': True, 'message': msg})
-
-    except Exception as e:
-        print(traceback.format_exc())
-        return jsonify({'success': False, 'message': f'エラー: {str(e)}'}), 500
+@app.route(f'{API_BASE_URL}/admin/register_bulk_schedule', methods=['POST'])
+def register_bulk_schedule():
+    if 'file' not in request.files: return jsonify({'success': False, 'message': 'ファイルなし'}), 400
+    file = request.files['file']
+    try:
+        content = file.stream.read()
+        try: text = content.decode('utf-8-sig')
+        except: text = content.decode('cp932')
+        stream = io.StringIO(text, newline=None)
+        csv_input = csv.DictReader(stream)
+        header_map = {'日付':'date','クラス':'class_id','限':'koma','授業名':'course_name'}
+        courses = execute_query("SELECT course_id, course_name FROM courses", fetch=True)
+        cmap = {c['course_name']:c['course_id'] for c in courses}
+        count=0
+        for row in csv_input:
+            nrow = {}
+            for k,v in row.items(): nrow[header_map.get(k.strip(), k.strip())] = v.strip()
+            dt=nrow.get('date'); cls=nrow.get('class_id'); koma=nrow.get('koma'); cname=nrow.get('course_name')
+            if not dt or not cls: continue
+            dt = dt.replace('/','-')
+            cid = cmap.get(cname)
+            if not cid:
+                execute_query("INSERT INTO courses (course_name) VALUES (%s)", (cname,))
+                newc = execute_query("SELECT course_id FROM courses WHERE course_name=%s", (cname,), fetch=True)
+                if newc: cid=newc[0]['course_id']; cmap[cname]=cid
+            if execute_query("INSERT INTO class_schedule (class_id, schedule_date, koma, course_id) VALUES (%s,%s,%s,%s) ON DUPLICATE KEY UPDATE course_id=%s", (cls,dt,koma,cid,cid)):
+                count+=1
+        return jsonify({'success': True, 'message': f'{count}コマ登録'})
+    except Exception as e: return jsonify({'success': False, 'message': str(e)}), 500
 
 if not any(t.name == 'AutoAbsentThread' for t in threading.enumerate()):
     t = threading.Thread(target=auto_mark_absent_loop, daemon=True, name='AutoAbsentThread')
