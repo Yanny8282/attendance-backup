@@ -62,6 +62,7 @@
 }
 
 /* カレンダー内のスロット選択状態 */
+/* teacher.js で style 属性を直接操作していますが、基本スタイルはこちら */
 .mini-badge:hover {
     opacity: 0.8;
 }
@@ -69,6 +70,10 @@
 /* =========================================
    モーダルウィンドウ (Modals)
    ========================================= */
+/* モーダルの背景オーバーレイ（画面全体を暗くする） */
+/* ※JSで制御するため、ここでは表示時のスタイル定義 */
+/* 実際のHTMLでは inline style で制御されていますが、クラス化する場合用 */
+
 /* モーダル本体のデザイン */
 #statusChangeModal, #schEditModal {
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
@@ -107,161 +112,4 @@
 }
 #realtimeTable button:hover {
     background-color: #5a6268;
-}
-
-/* =========================================
-   ★追加: チャット管理画面 (Chat Manager)
-   ========================================= */
-
-/* チャット全体を囲むコンテナ */
-.chat-container {
-    display: flex;
-    height: 65vh; /* 画面の高さに合わせて調整 */
-    border: 1px solid #dee2e6;
-    border-radius: 5px;
-    background-color: #fff;
-    overflow: hidden; /* 角丸からはみ出さないように */
-    margin-top: 10px;
-}
-
-/* 左側：生徒リストエリア */
-.chat-sidebar {
-    width: 280px; /* 固定幅 */
-    border-right: 1px solid #dee2e6;
-    background-color: #f8f9fa;
-    display: flex;
-    flex-direction: column;
-    padding: 10px;
-}
-
-.chat-sidebar label {
-    font-weight: bold;
-    margin-bottom: 5px;
-    font-size: 0.9rem;
-}
-
-.chat-sidebar select {
-    width: 100%;
-    padding: 8px;
-    margin-bottom: 10px;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
-}
-
-/* 右側：メインチャットエリア */
-.chat-main {
-    flex: 1; /* 残りの幅を全部使う */
-    display: flex;
-    flex-direction: column;
-    background-color: #fff;
-    position: relative;
-}
-
-/* メッセージ表示ウィンドウ */
-#teacherChatWindow {
-    flex: 1; /* 高さを自動伸縮 */
-    overflow-y: scroll;
-    padding: 20px;
-    background-color: #7494c0; /* LINE風の背景色 */
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-/* 入力エリア */
-.chat-input-area {
-    padding: 10px;
-    border-top: 1px solid #dee2e6;
-    background-color: #f1f3f5;
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-#teacherChatInput {
-    flex: 1; /* 横幅いっぱい */
-    height: 40px;
-    padding: 8px 12px;
-    border: 1px solid #ced4da;
-    border-radius: 20px; /* 丸みをつける */
-    resize: none; /* サイズ変更不可 */
-    line-height: 1.4;
-    font-family: inherit;
-}
-
-#teacherSendChatButton {
-    width: 80px;
-    height: 40px;
-    border-radius: 20px;
-    background-color: #007bff;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    margin-left: 5px;
-}
-
-/* =========================================
-   メッセージの吹き出しデザイン
-   ========================================= */
-.chat-msg {
-    max-width: 70%;
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-size: 0.95rem;
-    position: relative;
-    word-wrap: break-word;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-}
-
-/* 自分のメッセージ (右側) */
-.chat-msg.mine {
-    align-self: flex-end;
-    background-color: #8de055; /* 緑色 */
-    color: #000;
-    border-bottom-right-radius: 0;
-    margin-right: 5px;
-}
-/* 吹き出しのしっぽ (右) */
-.chat-msg.mine::after {
-    content: "";
-    position: absolute;
-    right: -8px;
-    bottom: 0;
-    width: 0;
-    height: 0;
-    border-style: solid;
-    border-width: 0 0 10px 10px;
-    border-color: transparent transparent transparent #8de055;
-}
-
-/* 相手のメッセージ (左側) */
-.chat-msg.theirs {
-    align-self: flex-start;
-    background-color: #fff;
-    border: 1px solid #ddd;
-    border-bottom-left-radius: 0;
-    margin-left: 5px;
-}
-/* 吹き出しのしっぽ (左) */
-.chat-msg.theirs::after {
-    content: "";
-    position: absolute;
-    left: -8px;
-    bottom: 0;
-    width: 0;
-    height: 0;
-    border-style: solid;
-    border-width: 0 10px 10px 0;
-    border-color: transparent #fff transparent transparent;
-}
-
-.chat-msg small {
-    display: block;
-    font-size: 0.7rem;
-    color: #555;
-    margin-top: 4px;
-    text-align: right;
-    opacity: 0.7;
 }
