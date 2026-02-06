@@ -326,444 +326,513 @@ async function loadCalStudents() {
 
 async function loadCalendar() {
     const sidEl = document.getElementById('calStudentSelect');
-    if (!sidEl || !sidEl.value) return alert('生徒を選択してください');
+    const sid = sidEl.value;
+    if (!sid) { alert("生徒を選択してください"); return; }
+    
+    const type = document.getElementById('calViewType').value;
+    const base = document.getElementById('calBaseDate').value;
+    if (!base) return;
 
-    const bdEl = document.getElementById('calBaseDate');
-    if (!bdEl) return;
-    const bd = new Date(bdEl.value);
-
-    let s, e;
-    const vEl = document.getElementById('calViewType');
-    if (vEl && vEl.value === 'week') {
-        s = new Date(bd); s.setDate(bd.getDate() - bd.getDay()); e = new Date(s); e.setDate(s.getDate() + 6);
+    const bDate = new Date(base);
+    let sDate, eDate;
+    
+    if (type === 'month') {
+        sDate = new Date(bDate.getFullYear(), bDate.getMonth(), 1);
+        eDate = new Date(bDate.getFullYear(), bDate.getMonth() + 1, 0);
     } else {
-        s = new Date(bd.getFullYear(), bd.getMonth(), 1); e = new Date(bd.getFullYear(), bd.getMonth() + 1, 0);
+        const day = bDate.getDay(); 
+        const diff = bDate.getDate() - day + (day === 0 ? -6 : 1);
+        sDate = new Date(bDate.setDate(diff));
+        eDate = new Date(bDate.setDate(diff + 6));
     }
 
-    const fmt = d => `${d.getFullYear()}-${('0' + (d.getMonth() + 1)).slice(-2)}-${('0' + d.getDate()).slice(-2)}`;
-
-    try {
-        const res = await (await fetch(`${API_BASE_URL}/get_student_attendance_range?student_id=${sidEl.value}&start_date=${fmt(s)}&end_date=${fmt(e)}`)).json();
-
-        let h = '<div class="month-calendar">';
-        ['日', '月', '火', '水', '木', '金', '土'].forEach(x => h += `<div class="month-day-header">${x}</div>`);
-
-        if (vEl && vEl.value === 'month') {
-            for (let i = 0; i < s.getDay(); i++) h += '<div></div>';
-        }
-
-        for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
-            const dt = fmt(d);
-            const recs = res.records.filter(r => r.attendance_date === dt);
-            recs.sort((a, b) => a.koma - b.koma);
-
-            let b = '';
-            recs.forEach(r => {
-                let c = '';
-                if (r.status_id == 1) c = 'bg-present';
-                else if (r.status_id == 2) c = 'bg-late';
-                else if (r.status_id == 3) c = 'bg-absent';
-                else if (r.status_id == 4) c = 'bg-late'; // 早退
-                else if (r.status_id == 5) c = 'bg-norecord'; // ★記録なし（強調）
-                
-                b += `<div class="mini-badge ${c}" onclick="openStModal(${sidEl.value},'',${r.course_id},${r.koma},'${dt}')">${r.koma}:${r.status_text}</div>`
+    const fmt = d => `${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}-${('0'+d.getDate()).slice(-2)}`;
+    const url = `${API_BASE_URL}/get_student_attendance_range?student_id=${sid}&start_date=${fmt(sDate)}&end_date=${fmt(eDate)}`;
+    const res = await (await fetch(url)).json();
+    
+    const con = document.getElementById('calendarContainer');
+    con.innerHTML = '';
+    
+    let html = '<div style="display:flex; flex-wrap:wrap; gap:10px;">';
+    let cur = new Date(sDate);
+    while (cur <= eDate) {
+        const dStr = fmt(cur);
+        const dayRecs = res.records ? res.records.filter(r => r.attendance_date === dStr) : [];
+        
+        let cell = `<div style="border:1px solid #ddd; width:130px; padding:5px; background:${dStr===fmt(new Date())?'#e8f4ff':'white'};">`;
+        cell += `<div style="font-weight:bold; border-bottom:1px solid #eee; margin-bottom:5px;">${dStr}</div>`;
+        
+        if (dayRecs.length > 0) {
+            dayRecs.forEach(r => {
+                const cls = r.status_id === 1 ? 'status-present' : (r.status_id === 2 ? 'status-late' : (r.status_id === 3 ? 'status-absent' : (r.status_id === 5 ? 'bg-norecord' : 'status-early')));
+                cell += `<div class="event-badge ${cls}" onclick="openStatusModal('${r.student_id}','${dStr}',${r.koma},${r.status_id},${r.course_id})">${r.koma}:${r.status_text}</div>`;
             });
-            h += `<div class="month-day">
-                    <div style="display:flex;justify-content:space-between;">
-                        <span class="day-number">${d.getDate()}</span>
-                        <span style="cursor:pointer;color:blue;" onclick="openStModal(${sidEl.value},'',0,0,'${dt}')">＋</span>
-                    </div>
-                    ${b}
-                  </div>`;
+        } else {
+            cell += `<div style="color:#ccc; font-size:0.8rem;">記録なし</div>`;
+            // 空きコマでも追加できるように
+            for(let k=1; k<=4; k++) {
+                 cell += `<div style="color:#ccc; font-size:0.8rem; cursor:pointer;" onclick="openStatusModal('${sid}','${dStr}',${k},5,0)">[+] ${k}限追加</div>`;
+            }
         }
-
-        const con = document.getElementById('calendarContainer');
-        if (con) con.innerHTML = h + '</div>';
-
-    } catch (e) {
-        console.error(e);
-        alert("カレンダー取得エラー");
+        cell += '</div>';
+        html += cell;
+        cur.setDate(cur.getDate() + 1);
     }
+    con.innerHTML = html + '</div>';
 }
 
-window.openStModal = (sid, n, cid, k, d) => {
-    editStData = { sid, date: d };
-    const info = document.getElementById('stModalInfo');
-    if (info) info.textContent = `${d}`;
-
-    const ck = document.getElementById('stModalKoma');
-    if (ck) { ck.value = k || 1; ck.disabled = !!k; }
-
-    const cc = document.getElementById('stModalCourse');
-    if (cc) cc.value = cid || (courses[0] ? courses[0].course_id : 0);
-
-    const delBtn = document.getElementById('stModalDelete');
-    if (delBtn) {
-        delBtn.style.display = (k && k !== 0) ? 'block' : 'none';
-    }
-
-    const m = document.getElementById('statusChangeModal');
-    if (m) m.style.display = 'block';
+window.openStatusModal = (sid, date, koma, status, course) => {
+    editStData = { sid, date, koma };
+    document.getElementById('stModalInfo').textContent = `${date} ${koma}限 (${sid})`;
+    document.getElementById('stModalSelect').value = status;
+    document.getElementById('stModalCourse').value = course || (courses.length > 0 ? courses[0].course_id : 0);
+    document.getElementById('stModalKoma').value = koma;
+    document.getElementById('statusChangeModal').style.display = 'block';
 };
 
 async function saveStatus() {
-    const k = document.getElementById('stModalKoma').value;
-    const c = document.getElementById('stModalCourse').value;
     const st = document.getElementById('stModalSelect').value;
-
-    await fetch(`${API_BASE_URL}/update_attendance_status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ student_id: editStData.sid, course_id: c, koma: k, date: editStData.date, status_id: st })
-    });
-
-    document.getElementById('statusChangeModal').style.display = 'none';
-    const calTab = document.getElementById('student-attendance');
-    if (calTab && calTab.style.display !== 'none') loadCalendar(); else loadRealtime();
+    const cid = document.getElementById('stModalCourse').value;
+    const k = document.getElementById('stModalKoma').value;
+    
+    if (editStData) {
+        await fetch(`${API_BASE_URL}/update_attendance_status`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({
+                student_id: editStData.sid, date: editStData.date, koma: k, status_id: st, course_id: cid
+            })
+        });
+        document.getElementById('statusChangeModal').style.display = 'none';
+        loadCalendar();
+    }
 }
 
 async function deleteStatus() {
-    if (!confirm('本当に削除しますか？\n（取り消しはできません）')) return;
-    await fetch(`${API_BASE_URL}/delete_attendance_record`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ student_id: editStData.sid, date: editStData.date, koma: document.getElementById('stModalKoma').value })
-    });
-    document.getElementById('statusChangeModal').style.display = 'none';
-    const calTab = document.getElementById('student-attendance');
-    if (calTab && calTab.style.display !== 'none') loadCalendar(); else loadRealtime();
+    if (editStData && confirm("この記録を削除しますか？")) {
+        await fetch(`${API_BASE_URL}/delete_attendance_record`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ student_id: editStData.sid, date: editStData.date, koma: editStData.koma })
+        });
+        document.getElementById('statusChangeModal').style.display = 'none';
+        loadCalendar();
+    }
 }
+
+window.downloadCsv = async () => {
+    const cls = document.getElementById('calClassFilter').value;
+    const ym = document.getElementById('csvMonthInput').value; // yyyy-mm
+    if (!ym) return;
+    const [y, m] = ym.split('-');
+    
+    const url = `${API_BASE_URL}/download_attendance_csv?class_id=${cls}&year=${y}&month=${m}`;
+    window.open(url, '_blank');
+};
 
 // ==========================================
 // ▼ 時間割管理
 // ==========================================
 async function loadSchedule() {
-    const ymEl = document.getElementById('scheduleMonthInput');
-    const clsEl = document.getElementById('scheduleClassSelect');
-    if (!ymEl || !clsEl) return;
+    const cls = document.getElementById('scheduleClassSelect').value;
+    const ym = document.getElementById('scheduleMonthInput').value;
+    if (!cls || !ym) return;
+
+    const [y, m] = ym.split('-');
+    const res = await (await fetch(`${API_BASE_URL}/get_monthly_schedule?class_id=${cls}&year=${y}&month=${m}`)).json();
+    const sch = res.schedule || [];
+
+    const con = document.getElementById('scheduleCalendarWrapper');
+    let html = '<div class="sch-grid" style="display:grid; grid-template-columns:repeat(7,1fr); gap:5px;">';
+    ['日','月','火','水','木','金','土'].forEach(d => html += `<div style="text-align:center; font-weight:bold; background:#eee;">${d}</div>`);
+
+    const sDate = new Date(y, m-1, 1);
+    const eDate = new Date(y, m, 0);
     
-    const ym = ymEl.value.split('-');
-    const cls = clsEl.value;
-    if (!cls) return;
+    for(let i=0; i<sDate.getDay(); i++) html += '<div></div>';
 
-    const r = await fetch(`${API_BASE_URL}/get_monthly_schedule?class_id=${cls}&year=${ym[0]}&month=${ym[1]}`);
-    const d = await r.json();
+    let cur = new Date(sDate);
+    while (cur <= eDate) {
+        const dStr = `${cur.getFullYear()}-${('0'+(cur.getMonth()+1)).slice(-2)}-${('0'+cur.getDate()).slice(-2)}`;
+        const isSel = schSel.includes(dStr);
+        
+        let cell = `<div class="sch-day ${isSel?'selected':''}" onclick="toggleSchSelect('${dStr}')" style="border:1px solid #ccc; min-height:80px; padding:5px; position:relative;">`;
+        cell += `<div style="font-weight:bold;">${cur.getDate()}</div>`;
 
-    const s = new Date(ym[0], ym[1] - 1, 1);
-    const e = new Date(ym[0], ym[1], 0);
-
-    let h = '<div class="month-calendar">';
-    ['日', '月', '火', '水', '木', '金', '土'].forEach(x => h += `<div class="month-day-header">${x}</div>`);
-
-    const modeEl = document.querySelector('input[name="schMode"]:checked');
-    const mode = modeEl ? modeEl.value : 'single';
-
-    for (let i = 0; i < s.getDay(); i++) h += '<div></div>';
-
-    for (let i = 1; i <= e.getDate(); i++) {
-        const dt = `${ym[0]}-${ym[1].toString().padStart(2, '0')}-${i.toString().padStart(2, '0')}`;
-        let slots = '';
-
-        for (let k = 1; k <= 4; k++) {
-            const item = d.schedule.find(x => x.schedule_date === dt && x.koma === k);
-            const name = item ? item.course_name : '-';
-            const bg = item ? '#e3f2fd' : '#f9f9f9';
-
-            const isSelected = schSel.find(x => x.date === dt && x.koma === k);
-            const border = isSelected ? '2px solid orange' : '1px solid #ddd';
-
-            const act = mode === 'single' ? `openSchEdit(${cls},'${dt}',${k})` : `toggleSlot(this,'${dt}',${k})`;
-            slots += `<div class="mini-badge" style="background:${bg}; border:${border}; cursor:pointer;" onclick="${act}">${k}:${name}</div>`;
+        for(let k=1; k<=4; k++) {
+            const f = sch.find(x => x.schedule_date === dStr && x.koma == k);
+            const cName = f ? f.course_name : '-';
+            const cId = f ? f.course_id : 0;
+            cell += `<div class="sch-item" onclick="event.stopPropagation(); openSchModal('${dStr}',${k},${cId})" style="font-size:0.8rem; background:${f?'#d1ecf1':'#f8f9fa'}; margin-top:2px; cursor:pointer;">${k}:${cName}</div>`;
         }
-        h += `<div class="month-day"><span class="day-number">${i}</span>${slots}</div>`;
+        cell += '</div>';
+        html += cell;
+        cur.setDate(cur.getDate() + 1);
     }
-    document.getElementById('scheduleCalendarWrapper').innerHTML = h + '</div>';
+    con.innerHTML = html + '</div>';
 }
 
-window.toggleSlot = (el, d, k) => {
-    const idx = schSel.findIndex(x => x.date === d && x.koma === k);
-    if (idx >= 0) schSel.splice(idx, 1); else schSel.push({ date: d, koma: k });
+window.toggleSchSelect = (date) => {
+    if (document.querySelector('input[name="schMode"]:checked').value !== 'multi') return;
+    if (schSel.includes(date)) schSel = schSel.filter(d => d !== date);
+    else schSel.push(date);
     loadSchedule();
 };
 
-window.openSchEdit = (cls, d, k) => {
-    editSchData = { cls, d, k };
-    const info = document.getElementById('schModalInfo');
-    if (info) info.textContent = `${d} ${k}限`;
+window.openSchModal = (date, koma, cid) => {
+    editSchData = { date, koma };
+    document.getElementById('schModalInfo').textContent = `${date} ${koma}限`;
+    document.getElementById('schModalCourse').value = cid || 0;
     document.getElementById('schEditModal').style.display = 'block';
 };
 
 async function saveSingleSch() {
     const cid = document.getElementById('schModalCourse').value;
-    await fetch(`${API_BASE_URL}/update_schedule_date`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            class_id: editSchData.cls,
-            updates: [{ date: editSchData.d, koma: editSchData.k, course_id: cid }]
-        })
-    });
-    document.getElementById('schEditModal').style.display = 'none';
-    loadSchedule();
+    if (editSchData) {
+        const cls = document.getElementById('scheduleClassSelect').value;
+        await updateSchedule(cls, [{ date: editSchData.date, koma: editSchData.koma, course_id: cid }]);
+        document.getElementById('schEditModal').style.display = 'none';
+        loadSchedule();
+    }
 }
 
 async function applyMultiSch() {
+    if (schSel.length === 0) return alert("日付を選択してください");
     const cid = document.getElementById('schMultiCourseSelect').value;
-    const ups = schSel.map(s => ({ date: s.date, koma: s.koma, course_id: cid }));
-    await fetch(`${API_BASE_URL}/update_schedule_date`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ class_id: document.getElementById('scheduleClassSelect').value, updates: ups })
+    if (!cid) return;
+    const cls = document.getElementById('scheduleClassSelect').value;
+    
+    // 全コマに適用するか、特定コマかを選択させるUIがないので、簡易的に「全コマ」または「1限〜4限」を一括登録する例
+    // ここでは単純化のため「4コマ全て同じ授業」にするか、UI不足のため「確認ダイアログ」で聞く
+    // → 簡易実装: 1限〜4限すべて同じ授業で埋める
+    if(!confirm(`${schSel.length}日分の全コマ(1-4限)をこの授業にしますか？`)) return;
+
+    const updates = [];
+    schSel.forEach(d => {
+        for(let k=1; k<=4; k++) updates.push({ date: d, koma: k, course_id: cid });
     });
+    
+    await updateSchedule(cls, updates);
     schSel = [];
     loadSchedule();
 }
 
-// ==========================================
-// ▼ 生徒管理・顔許可・PWリセット
-// ==========================================
-async function loadStudentList() {
-    const cf = document.getElementById('studentCrudClassFilter');
-    if (!cf) return;
-    const res = await (await fetch(`${API_BASE_URL}/get_student_list?class_id=${cf.value === 'all' ? '' : cf.value}`)).json();
-    students = res.students || [];
-    const tb = document.querySelector('#studentListTable tbody');
-    if (!tb) return;
-    tb.innerHTML = '';
-    students.forEach(s => {
-        tb.innerHTML += `
-            <tr>
-                <td>${s.student_id}</td>
-                <td>${s.student_name}</td>
-                <td>${s.class_id}</td>
-                <td>${s.attendance_rate}%</td> <td>${s.email || ''}</td>
-                <td>
-                    <div class="action-btn-group">
-                        <button class="btn-sm" onclick="openStudentForm(${s.student_id})">編集</button>
-                        <button class="btn-sm btn-permission" onclick="allowFaceReg(${s.student_id})">📷 許可</button>
-                        <button class="btn-sm btn-reset" onclick="resetPassword(${s.student_id})">🔑 PW</button>
-                    </div>
-                </td>
-            </tr>`;
+async function updateSchedule(cls, updates) {
+    await fetch(`${API_BASE_URL}/update_schedule_date`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ class_id: cls, updates })
     });
 }
 
-window.openStudentForm = (id) => {
-    document.getElementById('studentForm').style.display = 'block';
+// ==========================================
+// ▼ 生徒管理 (CRUD)
+// ==========================================
+async function loadStudentList() {
+    const f = document.getElementById('studentCrudClassFilter');
+    const tb = document.querySelector('#studentListTable tbody');
+    if (!f || !tb) return;
+    
+    tb.innerHTML = '<tr><td colspan="6">読み込み中...</td></tr>';
+    const res = await (await fetch(`${API_BASE_URL}/get_student_list?class_id=${f.value}`)).json();
+    students = res.students || [];
+    
+    // クラス選択肢の更新
     const sel = document.getElementById('crudSClassSelect');
-    if (sel) {
-        sel.innerHTML = '';
-        allClassIds.forEach(c => sel.innerHTML += `<option value="${c}">クラス${c}</option>`);
-        sel.innerHTML += '<option value="new">＋ 新規クラス</option>';
-    }
-    const inp = document.getElementById('crudSClassInput');
-    if (inp) inp.style.display = 'none';
+    sel.innerHTML = '<option value="new">＋新規クラス作成</option>';
+    allClassIds.forEach(c => {
+        sel.innerHTML += `<option value="${c}">${c}</option>`;
+    });
 
-    if (id) {
-        const s = students.find(x => x.student_id == id);
+    tb.innerHTML = '';
+    students.forEach(s => {
+        tb.innerHTML += `<tr>
+            <td>${s.student_id}</td>
+            <td>${s.student_name}</td>
+            <td>${s.class_id}</td>
+            <td>${s.attendance_rate ? s.attendance_rate+'%' : '-'}</td>
+            <td>${s.email || ''}</td>
+            <td><button class="btn-sm btn-permission" onclick='openStudentForm(${JSON.stringify(s)})'>編集</button></td>
+        </tr>`;
+    });
+}
+
+window.openStudentForm = (s) => {
+    const f = document.getElementById('studentForm');
+    f.style.display = 'block';
+    
+    if (s) {
         document.getElementById('crudSid').value = s.student_id;
         document.getElementById('crudSid').disabled = true;
         document.getElementById('crudSName').value = s.student_name;
-        if (sel) sel.value = s.class_id || (allClassIds[0] || '');
+        document.getElementById('crudSClassSelect').value = s.class_id;
         document.getElementById('crudSGen').value = s.gender || '設定しない';
-        document.getElementById('crudSBirth').value = s.birthday;
-        document.getElementById('crudSEmail').value = s.email;
+        document.getElementById('crudSBirth').value = s.birthday ? s.birthday.split('T')[0] : '';
+        document.getElementById('crudSEmail').value = s.email || '';
+        document.getElementById('crudSPass').value = '';
+        document.querySelector('.delete-btn').style.display = 'inline-block';
     } else {
-        document.getElementById('crudSid').disabled = false;
         document.getElementById('crudSid').value = '';
-        document.getElementById('crudSPass').value = 'password';
+        document.getElementById('crudSid').disabled = false;
         document.getElementById('crudSName').value = '';
+        document.getElementById('crudSClassSelect').value = allClassIds.length > 0 ? allClassIds[0] : 'new';
         document.getElementById('crudSGen').value = '設定しない';
         document.getElementById('crudSBirth').value = '';
         document.getElementById('crudSEmail').value = '';
+        document.getElementById('crudSPass').value = '';
+        document.querySelector('.delete-btn').style.display = 'none';
     }
 };
 
-window.saveStudent = async () => {
-    const sid = document.getElementById('crudSid').value, name = document.getElementById('crudSName').value, pass = document.getElementById('crudSPass').value;
-    const gen = document.getElementById('crudSGen').value, birth = document.getElementById('crudSBirth').value, email = document.getElementById('crudSEmail').value;
+async function saveStudent() {
+    const sid = document.getElementById('crudSid').value;
+    const name = document.getElementById('crudSName').value;
     let cls = document.getElementById('crudSClassSelect').value;
     if (cls === 'new') cls = document.getElementById('crudSClassInput').value;
+    const gen = document.getElementById('crudSGen').value;
+    const birth = document.getElementById('crudSBirth').value;
+    const mail = document.getElementById('crudSEmail').value;
+    const pass = document.getElementById('crudSPass').value;
 
-    if (!sid || !name || !cls || !pass || !birth || !email) return alert('入力不足です。全ての項目を入力してください。');
-    if (!sid.match(/^\d{6}$/)) return alert('生徒IDは数字6桁で入力してください。');
+    if (!sid || !name || !cls) return alert("必須項目を入力してください");
 
-    const body = {
-        student_id: sid, student_name: name, class_id: cls,
-        gender: gen, birthday: birth, email: email,
-        password: pass
-    };
-    const url = document.getElementById('crudSid').disabled ? 'update_student' : 'add_student';
-    try {
-        const res = await (await fetch(`${API_BASE_URL}/${url}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
-        if (res.success) { alert('保存しました'); location.reload(); } else alert('エラー: ' + res.message);
-    } catch (e) { alert('エラー: ' + e); }
-};
+    const mode = document.getElementById('crudSid').disabled ? 'update' : 'add';
+    const body = { student_id: sid, student_name: name, class_id: cls, gender: gen, birthday: birth, email: mail, password: pass };
+    
+    await fetch(`${API_BASE_URL}/${mode}_student`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+    });
+    
+    document.getElementById('studentForm').style.display = 'none';
+    loadStudentList();
+}
 
-window.deleteStudent = async () => {
-    if (confirm('削除しますか？')) {
-        await fetch(`${API_BASE_URL}/delete_student`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ student_id: document.getElementById('crudSid').value }) });
-        loadStudentList();
-        document.getElementById('studentForm').style.display = 'none';
-    }
-};
-
-window.allowFaceReg = async (sid) => {
-    if (!confirm(`ID: ${sid} の顔登録を許可しますか？\n(許可してから5分間だけ登録可能になります)`)) return;
-    try {
-        const res = await (await fetch(`${API_BASE_URL}/allow_face_registration`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+async function deleteStudent() {
+    const sid = document.getElementById('crudSid').value;
+    if (confirm("削除しますか？")) {
+        await fetch(`${API_BASE_URL}/delete_student`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify({ student_id: sid })
-        })).json();
-        if (res.success) alert(`許可しました。\n期限: ${res.expiry} まで`);
-        else alert('エラー: ' + res.message);
-    } catch (e) { console.error(e); alert('通信エラー'); }
-};
-
-window.resetPassword = async (sid) => {
-    const newPass = prompt(`ID: ${sid} の新しいパスワードを入力してください:`);
-    if (!newPass) return;
-    try {
-        const res = await (await fetch(`${API_BASE_URL}/reset_student_password`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ student_id: sid, new_password: newPass })
-        })).json();
-        if (res.success) alert('パスワードを変更しました');
-        else alert('エラー: ' + res.message);
-    } catch (e) { console.error(e); alert('通信エラー'); }
-};
+        });
+        document.getElementById('studentForm').style.display = 'none';
+        loadStudentList();
+    }
+}
 
 // ==========================================
 // ▼ 教員管理
 // ==========================================
-window.saveTeacher = async () => {
-    const tid = document.getElementById('crudTid').value, tname = document.getElementById('crudTName').value, em = document.getElementById('crudTEmail').value, pw = document.getElementById('crudTPass').value;
+async function loadTeacherList() {
+    const tb = document.querySelector('#teacherListTable tbody');
+    tb.innerHTML = '<tr><td colspan="5">読み込み中...</td></tr>';
+    const res = await (await fetch(`${API_BASE_URL}/get_teacher_list`)).json();
+    teachers = res.teachers || [];
     
-    if (!tid || !tname || !em || !pw) return alert('入力不足です。全ての項目を入力してください。');
-    if (!tid.toUpperCase().match(/^T\d{5}$/)) return alert('教員IDは「T」で始まる数字5桁(例: T12345)で入力してください。');
+    tb.innerHTML = '';
+    teachers.forEach(t => {
+        tb.innerHTML += `<tr>
+            <td>${t.teacher_id}</td>
+            <td>${t.teacher_name}</td>
+            <td>${(t.assigned_classes || []).join(', ')}</td>
+            <td>${t.email || ''}</td>
+            <td><button class="btn-sm btn-permission" onclick='openTeacherForm(${JSON.stringify(t)})'>編集</button></td>
+        </tr>`;
+    });
+}
 
-    const cls = []; document.querySelectorAll('#crudTClassCheckboxes input:checked').forEach(c => cls.push(parseInt(c.value)));
-    const url = document.getElementById('crudTid').disabled ? 'update_teacher' : 'add_teacher';
-    const requester = sessionStorage.getItem('user_id');
-    const res = await (await fetch(`${API_BASE_URL}/${url}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teacher_id: tid, teacher_name: tname, email: em, password: pw, assigned_classes: cls, requester_id: requester })
-    })).json();
-    if (res.success) { alert('保存しました'); document.getElementById('teacherForm').style.display = 'none'; loadTeacherList(); }
-    else { alert('エラー: ' + res.message); }
-};
+window.openTeacherForm = (t) => {
+    document.getElementById('teacherForm').style.display = 'block';
+    const box = document.getElementById('crudTClassCheckboxes');
+    box.innerHTML = '';
+    allClassIds.forEach(c => {
+        const chk = t && t.assigned_classes && t.assigned_classes.includes(parseInt(c));
+        box.innerHTML += `<label style="display:inline-block; margin-right:10px;"><input type="checkbox" value="${c}" ${chk?'checked':''}> Class ${c}</label>`;
+    });
 
-window.deleteTeacher = async () => {
-    if (confirm('削除しますか？')) {
-        const requester = sessionStorage.getItem('user_id');
-        const res = await (await fetch(`${API_BASE_URL}/delete_teacher`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ teacher_id: document.getElementById('crudTid').value, requester_id: requester })
-        })).json();
-        if (res.success) { loadTeacherList(); document.getElementById('teacherForm').style.display = 'none'; }
-        else { alert('エラー: ' + res.message); }
+    if (t) {
+        document.getElementById('crudTid').value = t.teacher_id;
+        document.getElementById('crudTid').disabled = true;
+        document.getElementById('crudTName').value = t.teacher_name;
+        document.getElementById('crudTEmail').value = t.email || '';
+        document.getElementById('crudTPass').value = '';
+        document.querySelector('#teacherForm .delete-btn').style.display = 'inline-block';
+    } else {
+        document.getElementById('crudTid').value = '';
+        document.getElementById('crudTid').disabled = false;
+        document.getElementById('crudTName').value = '';
+        document.getElementById('crudTEmail').value = '';
+        document.getElementById('crudTPass').value = '';
+        document.querySelector('#teacherForm .delete-btn').style.display = 'none';
     }
 };
 
-async function loadTeacherList() {
-    const res = await (await fetch(`${API_BASE_URL}/get_teacher_list`)).json();
-    teachers = res.teachers;
-    const tb = document.querySelector('#teacherListTable tbody'); tb.innerHTML = '';
-    teachers.forEach(t => tb.innerHTML += `<tr><td>${t.teacher_id}</td><td>${t.teacher_name}</td><td>${t.assigned_classes.join(',')}</td><td>${t.email}</td><td><button onclick="openTeacherForm('${t.teacher_id}')">編集</button></td></tr>`);
+async function saveTeacher() {
+    const tid = document.getElementById('crudTid').value;
+    const name = document.getElementById('crudTName').value;
+    const mail = document.getElementById('crudTEmail').value;
+    const pass = document.getElementById('crudTPass').value;
+    
+    const assigned = [];
+    document.querySelectorAll('#crudTClassCheckboxes input:checked').forEach(c => assigned.push(c.value));
+
+    if (!tid || !name) return alert("IDと名前は必須です");
+
+    const mode = document.getElementById('crudTid').disabled ? 'update' : 'add';
+    await fetch(`${API_BASE_URL}/${mode}_teacher`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ teacher_id: tid, teacher_name: name, email: mail, password: pass, assigned_classes: assigned })
+    });
+    
+    document.getElementById('teacherForm').style.display = 'none';
+    loadTeacherList();
 }
-window.openTeacherForm = (id) => {
-    document.getElementById('teacherForm').style.display = 'block';
-    const box = document.getElementById('crudTClassCheckboxes'); box.innerHTML = '';
-    allClassIds.forEach(c => box.innerHTML += `<label style="display:block;"><input type="checkbox" value="${c}"> クラス${c}</label>`);
-    if (id) {
-        const t = teachers.find(x => x.teacher_id == id);
-        document.getElementById('crudTid').value = t.teacher_id; document.getElementById('crudTid').disabled = true;
-        document.getElementById('crudTName').value = t.teacher_name; document.getElementById('crudTEmail').value = t.email; document.getElementById('crudTPass').value = t.password;
-        t.assigned_classes.forEach(c => { const el = box.querySelector(`input[value="${c}"]`); if (el) el.checked = true; });
-    } else { document.getElementById('crudTid').disabled = false; document.getElementById('crudTid').value = ''; }
-};
+
+async function deleteTeacher() {
+    const tid = document.getElementById('crudTid').value;
+    if (confirm("削除しますか？")) {
+        await fetch(`${API_BASE_URL}/delete_teacher`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ teacher_id: tid })
+        });
+        document.getElementById('teacherForm').style.display = 'none';
+        loadTeacherList();
+    }
+}
 
 // ==========================================
-// ▼ チャット機能
+// ▼ 欠席届
+// ==========================================
+async function loadAbsence() {
+    const d = document.getElementById('absenceDateFilter').value;
+    const c = document.getElementById('absenceClassFilter').value;
+    const tb = document.querySelector('#absenceTable tbody');
+    tb.innerHTML = '';
+    
+    const res = await (await fetch(`${API_BASE_URL}/get_absence_reports?date=${d}&class_id=${c}`)).json();
+    if (res.reports) {
+        res.reports.forEach(r => {
+            tb.innerHTML += `<tr>
+                <td>${r.attendance_date}</td>
+                <td>${r.student_name}</td>
+                <td>${r.koma}限</td>
+                <td>${r.reason}</td>
+                <td>${r.status_name}</td>
+            </tr>`;
+        });
+    } else {
+        tb.innerHTML = '<tr><td colspan="5">なし</td></tr>';
+    }
+}
+
+// ==========================================
+// ▼ チャット
 // ==========================================
 async function loadChatStudents() {
-    const el = document.getElementById('chatClassFilter');
-    if (!el) return;
-    const res = await (await fetch(`${API_BASE_URL}/get_student_list?class_id=${el.value}`)).json();
+    const c = document.getElementById('chatClassFilter').value;
     const s = document.getElementById('chatStudentSelect');
-    if (!s) return;
-    s.innerHTML = '<option value="">選択</option>';
-    if (res.students) res.students.forEach(i => s.innerHTML += `<option value="${i.student_id}">${i.student_name}</option>`);
+    s.innerHTML = '<option value="">生徒を選択</option>';
+    const res = await (await fetch(`${API_BASE_URL}/get_student_list?class_id=${c}`)).json();
+    if (res.students) {
+        res.students.forEach(i => {
+            s.innerHTML += `<option value="${i.student_id}">${i.student_name}</option>`;
+        });
+    }
 }
 
 async function loadChatHist() {
-    const sid = document.getElementById('chatStudentSelect').value; if (!sid) return;
-    const res = await (await fetch(`${API_BASE_URL}/chat/history?user1=${sessionStorage.getItem('user_id')}&user2=${sid}`)).json();
-    const w = document.getElementById('teacherChatWindow'); w.innerHTML = '';
-    res.messages.forEach(m => w.innerHTML += `<div class="message-bubble ${m.sender_id == sessionStorage.getItem('user_id') ? 'mine' : 'theirs'}"><div>${m.message_content}</div><div class="message-time">${m.time}</div></div>`);
+    const sid = document.getElementById('chatStudentSelect').value;
+    const tid = sessionStorage.getItem('user_id');
+    if (!sid) return;
+
+    const res = await (await fetch(`${API_BASE_URL}/chat/history?user1=${tid}&user2=${sid}`)).json();
+    const w = document.getElementById('teacherChatWindow');
+    w.innerHTML = '';
+    res.messages.forEach(m => {
+        w.innerHTML += `<div class="chat-msg ${m.sender_id===tid?'mine':'theirs'}"><div>${m.message_content}</div><small>${m.time}</small></div>`;
+    });
     w.scrollTop = w.scrollHeight;
 }
 
-// 連打防止付きチャット送信
 async function sendChat() {
-    const txt = document.getElementById('teacherChatInput').value;
     const sid = document.getElementById('chatStudentSelect').value;
-    const btn = document.getElementById('teacherSendChatButton');
-    
-    if (!txt || !sid) return;
-    
-    btn.disabled = true;
-    await fetch(`${API_BASE_URL}/chat/send`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_id: sessionStorage.getItem('user_id'), receiver_id: sid, content: txt }) });
+    const txt = document.getElementById('teacherChatInput').value;
+    const tid = sessionStorage.getItem('user_id');
+    if (!sid || !txt) return;
+
+    await fetch(`${API_BASE_URL}/chat/send`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ sender_id: tid, receiver_id: sid, content: txt })
+    });
     document.getElementById('teacherChatInput').value = '';
     loadChatHist();
-    btn.disabled = false;
 }
 
 window.openBroadcast = () => {
     document.getElementById('broadcastModal').style.display = 'block';
-    const box = document.getElementById('broadcastClassCheckboxes'); box.innerHTML = '';
-    allClassIds.forEach(c => box.innerHTML += `<label style="display:block;"><input type="checkbox" value="${c}"> クラス${c}</label>`);
+    const box = document.getElementById('broadcastClassCheckboxes');
+    box.innerHTML = '';
+    allClassIds.forEach(c => {
+        box.innerHTML += `<label style="display:block;"><input type="checkbox" value="${c}"> Class ${c}</label>`;
+    });
 };
 
 async function sendBroadcast() {
-    const ids = [], txt = document.getElementById('broadcastInput').value;
-    const btn = document.getElementById('submitBroadcast');
-    document.querySelectorAll('#broadcastClassCheckboxes input:checked').forEach(c => ids.push(parseInt(c.value)));
-    
-    if (!ids.length || !txt) return alert('入力不足');
-    
-    btn.disabled = true;
-    const res = await (await fetch(`${API_BASE_URL}/chat/broadcast`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_id: sessionStorage.getItem('user_id'), class_ids: ids, content: txt }) })).json();
-    alert(`${res.count}件送信完了`);
-    document.getElementById('broadcastModal').style.display = 'none';
-    loadChatHist();
-    btn.disabled = false;
-}
+    const txt = document.getElementById('broadcastInput').value;
+    if (!txt) return;
+    const ids = [];
+    document.querySelectorAll('#broadcastClassCheckboxes input:checked').forEach(c => ids.push(c.value));
+    if (ids.length === 0) return alert("クラスを選択してください");
 
-async function loadAbsence() {
-    const dEl = document.getElementById('absenceDateFilter');
-    const cEl = document.getElementById('absenceClassFilter');
-    if (!dEl || !cEl) return;
-
-    const res = await (await fetch(`${API_BASE_URL}/get_absence_reports?date=${dEl.value}&class_id=${cEl.value}`)).json();
-    const tb = document.querySelector('#absenceTable tbody');
-    if (!tb) return;
-    tb.innerHTML = '';
-
-    const g = {};
-    if (res.reports) res.reports.forEach(r => { const k = `${r.attendance_date}_${r.student_id}`; if (!g[k]) g[k] = { d: r.attendance_date, n: r.student_name, r: r.reason, l: [] }; g[k].l.push(r); });
-
-    Object.keys(g).forEach((k, i) => {
-        const item = g[k], ks = item.l.map(x => x.koma).join(',') + '限';
-        tb.innerHTML += `<tr style="background:white;"><td>${item.d}</td><td>${item.n}</td><td>${ks}</td><td>${item.r}</td><td><button onclick="toggleRow('ab-det-${i}')">詳細</button></td></tr><tr id="ab-det-${i}" style="display:none;background:#f9f9f9;"><td colspan="5"><table style="width:100%;"><tbody>${item.l.map(x => `<tr><td>${x.koma}限</td><td>${x.course_name}</td><td>${x.status_name}</td></tr>`).join('')}</tbody></table></td></tr>`;
+    const tid = sessionStorage.getItem('user_id');
+    await fetch(`${API_BASE_URL}/chat/broadcast`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ sender_id: tid, class_ids: ids, content: txt })
     });
+    alert("送信しました");
+    document.getElementById('broadcastModal').style.display = 'none';
 }
-window.toggleRow = id => { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? 'table-row' : 'none'; };
 
-window.downloadCsv = () => {
-    const c = document.getElementById('calClassFilter').value, ym = document.getElementById('csvMonthInput').value;
-    if (!c || c === 'all' || !ym) return alert('クラスと年月を指定してください');
+// ==========================================
+// ★ 追加: CSV一括登録機能
+// ==========================================
+window.openCsvModal = () => {
+    document.getElementById('csvUploadModal').style.display = 'block';
+    const input = document.getElementById('csvFileInput');
+    if(input) input.value = '';
+};
+
+window.uploadCsv = async () => {
+    const input = document.getElementById('csvFileInput');
+    if (!input.files || input.files.length === 0) {
+        alert("ファイルを選択してください");
+        return;
+    }
     
-    const [year, month] = ym.split('-');
-    window.location.href = `${API_BASE_URL}/download_attendance_csv?class_id=${c}&year=${year}&month=${month}`;
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+    
+    const btn = event.target; // クリックされたボタン
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "送信中...";
+    
+    try {
+        const res = await fetch(`${API_BASE_URL}/admin/register_bulk_students`, {
+            method: 'POST',
+            body: formData
+        });
+        const d = await res.json();
+        
+        if (d.success) {
+            alert(d.message);
+            document.getElementById('csvUploadModal').style.display = 'none';
+            loadStudentList(); // リスト更新
+        } else {
+            alert("エラー: " + d.message);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("通信エラーが発生しました");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
 };

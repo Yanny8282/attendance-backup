@@ -103,6 +103,7 @@
             <div style="margin-bottom: 15px; display:flex; align-items:center; gap:15px;">
                 <label>絞り込み: <select id="studentCrudClassFilter"><option value="all">全クラス</option></select></label>
                 <button onclick="openStudentForm(null)">＋ 新規生徒を追加</button>
+                <button onclick="openCsvModal()" style="background-color: #28a745; color: white;">📂 CSV一括登録</button>
             </div>
             
             <div id="studentForm" style="display:none;">
@@ -189,6 +190,18 @@
         <h3>📢 一斉送信</h3><div id="broadcastClassCheckboxes" style="border:1px solid #ccc; padding:10px; max-height:150px; overflow-y:scroll; margin-bottom:15px;"></div>
         <textarea id="broadcastInput" rows="5" style="width:100%; margin-bottom:15px;"></textarea>
         <div style="text-align:right;"><button onclick="document.getElementById('broadcastModal').style.display='none'" style="background:#6c757d; margin-right:10px;">キャンセル</button><button id="submitBroadcast" style="background:#ff9800;">送信</button></div>
+    </div>
+
+    <div id="csvUploadModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:25px; border-radius:8px; box-shadow:0 0 20px rgba(0,0,0,0.5); width:350px;">
+        <h3>📂 生徒CSV一括登録</h3>
+        <p style="font-size:0.9rem; color:#666; margin-bottom:15px;">
+            CSV形式: student_id, student_name, class_id, email, password, gender, birthday
+        </p>
+        <input type="file" id="csvFileInput" accept=".csv" style="width:100%; margin-bottom:15px;">
+        <div style="text-align:right;">
+            <button onclick="document.getElementById('csvUploadModal').style.display='none'" style="background:#6c757d; margin-right:10px;">キャンセル</button>
+            <button onclick="uploadCsv()" style="background:#28a745; color:white;">アップロード</button>
+        </div>
     </div>
 
     <script src="../js/teacher.js"></script>
