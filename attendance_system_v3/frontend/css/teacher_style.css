@@ -3,38 +3,27 @@
 /* =========================================
    管理テーブルの拡張 (Admin Tables)
    ========================================= */
-/* 行ホバー時の強調 */
 #realtimeTable tbody tr:hover,
 #studentListTable tbody tr:hover,
 #teacherListTable tbody tr:hover {
     background-color: #f1f3f5;
 }
 
-/* 操作ボタン（編集・削除） */
 .action-button {
     padding: 4px 8px;
     font-size: 0.85rem;
     margin-right: 5px;
 }
 
-.edit-btn {
-    background-color: #17a2b8; /* 水色 */
-}
-.edit-btn:hover {
-    background-color: #138496;
-}
+.edit-btn { background-color: #17a2b8; }
+.edit-btn:hover { background-color: #138496; }
 
-.delete-btn {
-    background-color: #dc3545; /* 赤 */
-}
-.delete-btn:hover {
-    background-color: #c82333;
-}
+.delete-btn { background-color: #dc3545; }
+.delete-btn:hover { background-color: #c82333; }
 
 /* =========================================
    入力フォームカード (CRUD Forms)
    ========================================= */
-/* 新規追加・編集フォームの囲い */
 #studentForm, #teacherForm {
     background-color: #f8f9fa;
     border: 1px solid #dee2e6;
@@ -44,15 +33,13 @@
     box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
 }
 
-#studentForm input,
-#teacherForm input {
+#studentForm input, #teacherForm input {
     margin-right: 10px;
 }
 
 /* =========================================
    時間割・カレンダー管理
    ========================================= */
-/* 複数選択モードのコントローラー */
 #multiControls {
     display: inline-block;
     background-color: #fff3cd;
@@ -61,55 +48,225 @@
     border: 1px solid #ffeeba;
 }
 
-/* カレンダー内のスロット選択状態 */
-/* teacher.js で style 属性を直接操作していますが、基本スタイルはこちら */
-.mini-badge:hover {
-    opacity: 0.8;
-}
+.mini-badge:hover { opacity: 0.8; }
 
 /* =========================================
-   モーダルウィンドウ (Modals)
+   ★追加: カレンダーグリッド表示用スタイル
    ========================================= */
-/* モーダルの背景オーバーレイ（画面全体を暗くする） */
-/* ※JSで制御するため、ここでは表示時のスタイル定義 */
-/* 実際のHTMLでは inline style で制御されていますが、クラス化する場合用 */
+.month-calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr); /* 7等分 */
+    gap: 2px;
+    background-color: #ddd; /* 枠線の色代わり */
+    border: 1px solid #ccc;
+}
 
-/* モーダル本体のデザイン */
+.month-day-header {
+    background-color: #f8f9fa;
+    text-align: center;
+    font-weight: bold;
+    padding: 5px;
+    font-size: 0.9rem;
+}
+
+.month-day {
+    background-color: #fff;
+    min-height: 100px;
+    padding: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.day-number {
+    font-weight: bold;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+    border-bottom: 1px solid #eee;
+}
+
+/* カレンダー内のバッジ */
+.event-badge {
+    font-size: 0.75rem;
+    padding: 2px 4px;
+    border-radius: 3px;
+    color: #333;
+    cursor: pointer;
+    margin-bottom: 2px;
+}
+.status-present { background-color: #d4edda; color: #155724; }
+.status-late    { background-color: #fff3cd; color: #856404; }
+.status-absent  { background-color: #f8d7da; color: #721c24; }
+.status-early   { background-color: #e2e3e5; color: #383d41; }
+.bg-norecord    { background-color: #6c757d; color: #fff; }
+
+/* =========================================
+   モーダルウィンドウ
+   ========================================= */
 #statusChangeModal, #schEditModal {
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     border-radius: 8px;
     width: 300px;
     text-align: center;
 }
-
 #statusChangeModal h3, #schEditModal h3 {
     margin-top: 0;
     color: #333;
     border-bottom: 1px solid #eee;
     padding-bottom: 10px;
 }
-
 #statusChangeModal select, #schEditModal select {
     width: 80%;
     margin-bottom: 20px;
     font-size: 1.1rem;
     padding: 8px;
 }
-
 #statusChangeModal button, #schEditModal button {
     margin: 5px;
     min-width: 80px;
 }
 
 /* =========================================
-   リアルタイム確認画面
+   チャット管理画面 (Flexboxレイアウト)
    ========================================= */
-/* 変更ボタンを目立たせる */
-#realtimeTable button {
-    background-color: #6c757d;
-    font-size: 0.8rem;
-    padding: 3px 8px;
+.chat-container {
+    display: flex;
+    height: 65vh;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    background-color: #fff;
+    overflow: hidden;
+    margin-top: 10px;
 }
-#realtimeTable button:hover {
-    background-color: #5a6268;
+
+.chat-sidebar {
+    width: 280px;
+    border-right: 1px solid #dee2e6;
+    background-color: #f8f9fa;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+}
+
+.chat-sidebar label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+.chat-sidebar select {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+}
+
+.chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+    position: relative;
+}
+
+#teacherChatWindow {
+    flex: 1;
+    overflow-y: scroll;
+    padding: 20px;
+    background-color: #7494c0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chat-input-area {
+    padding: 10px;
+    border-top: 1px solid #dee2e6;
+    background-color: #f1f3f5;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+#teacherChatInput {
+    flex: 1;
+    height: 40px;
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 20px;
+    resize: none;
+    line-height: 1.4;
+    font-family: inherit;
+}
+
+#teacherSendChatButton {
+    width: 80px;
+    height: 40px;
+    border-radius: 20px;
+    background-color: #007bff;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin-left: 5px;
+}
+
+/* チャット吹き出し */
+.message-bubble {
+    max-width: 70%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    position: relative;
+    word-wrap: break-word;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.message-bubble.mine {
+    align-self: flex-end;
+    background-color: #8de055;
+    color: #000;
+    border-bottom-right-radius: 0;
+    margin-right: 5px;
+}
+.message-bubble.mine::after {
+    content: "";
+    position: absolute;
+    right: -8px;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 0 10px 10px;
+    border-color: transparent transparent transparent #8de055;
+}
+
+.message-bubble.theirs {
+    align-self: flex-start;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-bottom-left-radius: 0;
+    margin-left: 5px;
+}
+.message-bubble.theirs::after {
+    content: "";
+    position: absolute;
+    left: -8px;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 10px 10px 0;
+    border-color: transparent #fff transparent transparent;
+}
+
+.message-time {
+    display: block;
+    font-size: 0.7rem;
+    color: #555;
+    margin-top: 4px;
+    text-align: right;
+    opacity: 0.7;
 }
