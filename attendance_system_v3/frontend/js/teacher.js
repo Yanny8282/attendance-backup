@@ -1,6 +1,8 @@
 const API_BASE_URL = '/api';
 let courses = [], komas = [], students = [], teachers = [], schSel = [], chatTimer = null;
 let editStData = null, editSchData = null, allClassIds = [];
+// ★追加: 選択された「コマ」を保存する配列
+let schSelKomas = [];
 
 // ==========================================
 // ▼ 認証チェック関数
@@ -215,7 +217,9 @@ function setupEvents() {
         e.onchange = () => {
             const mc = document.getElementById('multiControls');
             if (mc) mc.style.display = e.value === 'multi' ? 'inline' : 'none';
+            // ★変更: モード変更時に選択状態を完全リセット
             schSel = [];
+            schSelKomas = [];
             loadSchedule();
         };
     });
@@ -429,7 +433,7 @@ window.downloadCsv = async () => {
 };
 
 // ==========================================
-// ▼ 時間割管理
+// ▼ 時間割管理 (大幅修正部分)
 // ==========================================
 async function loadSchedule() {
     const cls = document.getElementById('scheduleClassSelect').value;
@@ -452,16 +456,26 @@ async function loadSchedule() {
     let cur = new Date(sDate);
     while (cur <= eDate) {
         const dStr = `${cur.getFullYear()}-${('0'+(cur.getMonth()+1)).slice(-2)}-${('0'+cur.getDate()).slice(-2)}`;
-        const isSel = schSel.includes(dStr);
         
-        let cell = `<div class="sch-day ${isSel?'selected':''}" onclick="toggleSchSelect('${dStr}')" style="border:1px solid #ccc; min-height:80px; padding:5px; position:relative;">`;
+        // 日付自体の選択状態 (既存)
+        const isDaySel = schSel.includes(dStr);
+        
+        let cell = `<div class="sch-day ${isDaySel?'selected':''}" onclick="toggleSchSelect('${dStr}')" style="border:1px solid #ccc; min-height:80px; padding:5px; position:relative;">`;
         cell += `<div style="font-weight:bold;">${cur.getDate()}</div>`;
 
         for(let k=1; k<=4; k++) {
             const f = sch.find(x => x.schedule_date === dStr && x.koma == k);
             const cName = f ? f.course_name : '-';
             const cId = f ? f.course_id : 0;
-            cell += `<div class="sch-item" onclick="event.stopPropagation(); openSchModal('${dStr}',${k},${cId})" style="font-size:0.8rem; background:${f?'#d1ecf1':'#f8f9fa'}; margin-top:2px; cursor:pointer;">${k}:${cName}</div>`;
+
+            // ★追加: このコマが選択されているかチェック
+            const isKomaSel = schSelKomas.some(item => item.date === dStr && item.koma === k);
+            // ★追加: 選択されていたら枠線を赤くしたり背景を変えたりする
+            const bgStyle = isKomaSel ? '#ffc107' : (f ? '#d1ecf1' : '#f8f9fa');
+            const borderStyle = isKomaSel ? '2px solid #ff0000' : '1px solid #ddd';
+            
+            // ★変更: onclick を onSchItemClick に投げる
+            cell += `<div class="sch-item" onclick="event.stopPropagation(); onSchItemClick('${dStr}', ${k}, ${cId})" style="font-size:0.8rem; background:${bgStyle}; border:${borderStyle}; margin-top:2px; cursor:pointer; padding:2px;">${k}:${cName}</div>`;
         }
         cell += '</div>';
         html += cell;
@@ -470,11 +484,34 @@ async function loadSchedule() {
     con.innerHTML = html + '</div>';
 }
 
+// ★追加: モードに応じたクリック処理の分岐
+window.onSchItemClick = (date, koma, cid) => {
+    const mode = document.querySelector('input[name="schMode"]:checked').value;
+    if (mode === 'multi') {
+        // 一括モードなら選択状態をトグル
+        toggleSchKoma(date, koma);
+    } else {
+        // 個別モードなら編集モーダルを開く（既存動作）
+        openSchModal(date, koma, cid);
+    }
+};
+
 window.toggleSchSelect = (date) => {
     if (document.querySelector('input[name="schMode"]:checked').value !== 'multi') return;
     if (schSel.includes(date)) schSel = schSel.filter(d => d !== date);
     else schSel.push(date);
     loadSchedule();
+};
+
+// ★追加: コマ単位の選択トグル処理
+window.toggleSchKoma = (date, koma) => {
+    const idx = schSelKomas.findIndex(item => item.date === date && item.koma === koma);
+    if (idx > -1) {
+        schSelKomas.splice(idx, 1); // 選択解除
+    } else {
+        schSelKomas.push({ date, koma }); // 選択追加
+    }
+    loadSchedule(); // 再描画
 };
 
 window.openSchModal = (date, koma, cid) => {
@@ -495,23 +532,38 @@ async function saveSingleSch() {
 }
 
 async function applyMultiSch() {
-    if (schSel.length === 0) return alert("日付を選択してください");
+    // どちらの選択リストも空ならアラート
+    if (schSel.length === 0 && schSelKomas.length === 0) return alert("日付またはコマを選択してください");
+    
     const cid = document.getElementById('schMultiCourseSelect').value;
     if (!cid) return;
     const cls = document.getElementById('scheduleClassSelect').value;
     
-    // 全コマに適用するか、特定コマかを選択させるUIがないので、簡易的に「全コマ」または「1限〜4限」を一括登録する例
-    // ここでは単純化のため「4コマ全て同じ授業」にするか、UI不足のため「確認ダイアログ」で聞く
-    // → 簡易実装: 1限〜4限すべて同じ授業で埋める
-    if(!confirm(`${schSel.length}日分の全コマ(1-4限)をこの授業にしますか？`)) return;
+    let updates = [];
+    let message = "";
 
-    const updates = [];
-    schSel.forEach(d => {
-        for(let k=1; k<=4; k++) updates.push({ date: d, koma: k, course_id: cid });
-    });
-    
+    // A. コマ単位の選択がある場合（優先）
+    if (schSelKomas.length > 0) {
+        message = `${schSelKomas.length}個の選択したコマをこの授業に変更しますか？`;
+        schSelKomas.forEach(item => {
+            updates.push({ date: item.date, koma: item.koma, course_id: cid });
+        });
+    } 
+    // B. 日付単位の選択しかない場合（既存の簡易動作）
+    else {
+        message = `${schSel.length}日分の全コマ(1-4限)をこの授業にしますか？`;
+        schSel.forEach(d => {
+            for(let k=1; k<=4; k++) updates.push({ date: d, koma: k, course_id: cid });
+        });
+    }
+
+    if(!confirm(message)) return;
+
     await updateSchedule(cls, updates);
+    
+    // 選択状態をリセット
     schSel = [];
+    schSelKomas = [];
     loadSchedule();
 }
 
