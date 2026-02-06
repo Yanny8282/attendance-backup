@@ -35,14 +35,6 @@ app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
 CORS(app)
 
 # ==========================================
-# ▼ Basic認証の設定
-# ==========================================
-#app.config['BASIC_AUTH_USERNAME'] = 'admin'
-#app.config['BASIC_AUTH_PASSWORD'] = 'sotsuken2026'
-#app.config['BASIC_AUTH_FORCE'] = True
-#basic_auth = BasicAuth(app)
-
-# ==========================================
 # ▼ 定数・設定
 # ==========================================
 STATUS_NAMES = {
@@ -552,11 +544,18 @@ def broadcast_chat():
 def chat_history():
     u1, u2 = request.args.get('user1'), request.args.get('user2')
     execute_query("UPDATE chat_messages SET is_read=1 WHERE sender_id=%s AND receiver_id=%s AND is_read=0", (u2, u1))
-    res = execute_query("SELECT sender_id, message_content, DATE_FORMAT(timestamp, '%%Y-%%m-%%d %%H:%%i') as time FROM chat_messages WHERE (sender_id=%s AND receiver_id=%s) OR (sender_id=%s AND receiver_id=%s) ORDER BY timestamp ASC", (u1,u2,u2,u1), fetch=True)
+    
+    # ★修正: 日付フォーマットをSQLではなくPython側で行うように変更 (MySQLの日付バグ回避)
+    res = execute_query("SELECT sender_id, message_content, timestamp FROM chat_messages WHERE (sender_id=%s AND receiver_id=%s) OR (sender_id=%s AND receiver_id=%s) ORDER BY timestamp ASC", (u1,u2,u2,u1), fetch=True)
+    
+    for r in res:
+        r['time'] = r['timestamp'].strftime('%Y-%m-%d %H:%M') if r['timestamp'] else ''
+        del r['timestamp'] # JSONシリアライズエラー防止
+
     return jsonify({'success': True, 'messages': res})
 
 # ==========================================
-# ★修正版: 生徒一括登録API (CSV読み込み)
+# ▼ 生徒一括登録API (CSV読み込み)
 # ==========================================
 @app.route(f'{API_BASE_URL}/admin/register_bulk_students', methods=['POST'])
 def register_bulk_students():
@@ -585,7 +584,7 @@ def register_bulk_students():
         stream = io.StringIO(text_data, newline=None)
         csv_input = csv.DictReader(stream)
         
-        # ★追加: 日本語ヘッダー対応マップ
+        # 日本語ヘッダー対応マップ
         header_map = {
             '学籍番号': 'student_id',
             '氏名': 'student_name', '名前': 'student_name',
@@ -600,14 +599,13 @@ def register_bulk_students():
         skipped = 0
         
         for i, row in enumerate(csv_input):
-            # キーの正規化 (日本語ヘッダーを英語キーに変換)
+            # キーの正規化
             normalized_row = {}
             for k, v in row.items():
                 k_clean = k.strip() if k else ''
                 new_key = header_map.get(k_clean, k_clean)
                 normalized_row[new_key] = v.strip() if v else ''
 
-            # 必須チェック
             if 'student_id' not in normalized_row or 'student_name' not in normalized_row:
                 skipped += 1
                 continue
@@ -656,7 +654,6 @@ if not any(t.name == 'AutoAbsentThread' for t in threading.enumerate()):
     t.start()
     
 if __name__ == '__main__':
-    # スレッド起動
     t = threading.Thread(target=auto_mark_absent_loop, daemon=True)
     t.start()
     app.run(host='0.0.0.0', port=443, debug=True, ssl_context='adhoc')
