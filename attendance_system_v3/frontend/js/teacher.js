@@ -1,8 +1,7 @@
 const API_BASE_URL = '/api';
 let courses = [], komas = [], students = [], teachers = [], schSel = [], chatTimer = null;
 let editStData = null, editSchData = null, allClassIds = [];
-// ★復活: 選択された「コマ」を保存する配列
-let schSelKomas = [];
+let schSelKomas = []; // 時間割一括選択用
 
 // ==========================================
 // ▼ 認証チェック関数
@@ -59,7 +58,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         setupEvents();
 
+        console.log("初期データを読み込み中...");
         await initData();
+        
         loadRealtime();
 
         const u = sessionStorage.getItem('unread_count');
@@ -124,8 +125,16 @@ async function initData() {
         const schEl = document.getElementById('scheduleClassSelect');
         if (schEl && schEl.options.length > 0) schEl.value = schEl.options[0].value;
 
+        const h = new Date().getHours();
+        const m = new Date().getMinutes();
+        const mm = h * 60 + m;
+        let k = 1;
+        if (mm >= 645 && mm < 750) k = 2;
+        else if (mm >= 805 && mm < 900) k = 3;
+        else if (mm >= 910) k = 4;
+
         const kEl = document.getElementById('realtimeKoma');
-        if (kEl) kEl.value = 1;
+        if (kEl) kEl.value = k;
 
     } catch (e) {
         console.error("データ初期化エラー:", e);
@@ -190,7 +199,7 @@ function setupEvents() {
 
     bind('showCalendarBtn', loadCalendar);
     bind('stModalSave', saveStatus);
-    bind('stModalDelete', deleteStatus);
+    bind('stModalDelete', deleteStatus); // 削除ボタン
     bind('teacherSendChatButton', sendChat);
     bind('broadcastChatButton', openBroadcast);
     bind('submitBroadcast', sendBroadcast);
@@ -206,9 +215,8 @@ function setupEvents() {
         e.onchange = () => {
             const mc = document.getElementById('multiControls');
             if (mc) mc.style.display = e.value === 'multi' ? 'inline' : 'none';
-            // モード変更時は選択をリセット
             schSel = [];
-            schSelKomas = []; 
+            schSelKomas = [];
             loadSchedule();
         };
     });
@@ -437,7 +445,7 @@ window.downloadCsv = async () => {
 };
 
 // ==========================================
-// ▼ 時間割管理 (★修正済み: 複数選択対応)
+// ▼ 時間割管理
 // ==========================================
 async function loadSchedule() {
     const cls = document.getElementById('scheduleClassSelect').value;
@@ -460,29 +468,23 @@ async function loadSchedule() {
     let cur = new Date(sDate);
     while (cur <= eDate) {
         const dStr = `${cur.getFullYear()}-${('0'+(cur.getMonth()+1)).slice(-2)}-${('0'+cur.getDate()).slice(-2)}`;
-        
-        // 日付選択状態 (schSel)
-        const isDaySel = schSel.includes(dStr);
-        
-        let cell = `<div class="sch-day ${isDaySel?'selected':''}" onclick="toggleSchSelect('${dStr}')" style="border:1px solid #ccc; min-height:80px; padding:5px; position:relative;">`;
+        const isSel = schSel.includes(dStr);
+        // コマ選択状態
+        const isKomaSel = (item, date, k) => schSelKomas.some(x => x.date === date && x.koma === k);
+
+        let cell = `<div class="sch-day ${isSel?'selected':''}" onclick="toggleSchSelect('${dStr}')" style="border:1px solid #ccc; min-height:80px; padding:5px; position:relative;">`;
         cell += `<div style="font-weight:bold;">${cur.getDate()}</div>`;
 
         for(let k=1; k<=4; k++) {
             const f = sch.find(x => x.schedule_date === dStr && x.koma == k);
             const cName = f ? f.course_name : '-';
             const cId = f ? f.course_id : 0;
+            
+            const isSelected = schSelKomas.some(item => item.date === dStr && item.koma === k);
+            const bgStyle = isSelected ? '#ffc107' : (f ? '#d1ecf1' : '#f8f9fa');
+            const borderStyle = isSelected ? '2px solid #ff0000' : '1px solid #ddd';
 
-            // ★コマ選択状態 (schSelKomas)
-            const isKomaSel = schSelKomas.some(item => item.date === dStr && item.koma === k);
-            const bgStyle = isKomaSel ? '#ffc107' : (f ? '#d1ecf1' : '#f8f9fa');
-            const borderStyle = isKomaSel ? '2px solid #ff0000' : '1px solid #ddd';
-
-            // ★修正: onclick を分岐関数へ飛ばす
-            cell += `<div class="sch-item" 
-                onclick="event.stopPropagation(); onSchItemClick('${dStr}', ${k}, ${cId})" 
-                style="font-size:0.8rem; background:${bgStyle}; border:${borderStyle}; margin-top:2px; cursor:pointer; padding:2px;">
-                ${k}:${cName}
-            </div>`;
+            cell += `<div class="sch-item" onclick="event.stopPropagation(); onSchItemClick('${dStr}',${k},${cId})" style="font-size:0.8rem; background:${bgStyle}; border:${borderStyle}; margin-top:2px; cursor:pointer; padding:2px;">${k}:${cName}</div>`;
         }
         cell += '</div>';
         html += cell;
@@ -491,7 +493,6 @@ async function loadSchedule() {
     con.innerHTML = html + '</div>';
 }
 
-// ★追加: クリック時の分岐処理
 window.onSchItemClick = (date, koma, cid) => {
     const mode = document.querySelector('input[name="schMode"]:checked').value;
     if (mode === 'multi') {
@@ -508,7 +509,6 @@ window.toggleSchSelect = (date) => {
     loadSchedule();
 };
 
-// ★追加: コマ単位の選択トグル
 window.toggleSchKoma = (date, koma) => {
     const idx = schSelKomas.findIndex(item => item.date === date && item.koma === koma);
     if (idx > -1) {
@@ -544,28 +544,19 @@ async function applyMultiSch() {
     const cls = document.getElementById('scheduleClassSelect').value;
     
     let updates = [];
-    let message = "";
-
-    // A. コマ選択がある場合（優先）
     if (schSelKomas.length > 0) {
-        message = `${schSelKomas.length}個の選択したコマをこの授業に変更しますか？`;
+        if(!confirm(`${schSelKomas.length}個の選択したコマをこの授業に変更しますか？`)) return;
         schSelKomas.forEach(item => {
             updates.push({ date: item.date, koma: item.koma, course_id: cid });
         });
-    } 
-    // B. 日付選択しかない場合
-    else {
-        message = `${schSel.length}日分の全コマ(1-4限)をこの授業にしますか？`;
+    } else {
+        if(!confirm(`${schSel.length}日分の全コマ(1-4限)をこの授業にしますか？`)) return;
         schSel.forEach(d => {
             for(let k=1; k<=4; k++) updates.push({ date: d, koma: k, course_id: cid });
         });
     }
 
-    if(!confirm(message)) return;
-
     await updateSchedule(cls, updates);
-    
-    // リセット
     schSel = [];
     schSelKomas = [];
     loadSchedule();
@@ -592,9 +583,7 @@ async function loadStudentList() {
     
     const sel = document.getElementById('crudSClassSelect');
     sel.innerHTML = '<option value="new">＋新規クラス作成</option>';
-    allClassIds.forEach(c => {
-        sel.innerHTML += `<option value="${c}">${c}</option>`;
-    });
+    allClassIds.forEach(c => { sel.innerHTML += `<option value="${c}">${c}</option>`; });
 
     tb.innerHTML = '';
     students.forEach(s => {
@@ -604,10 +593,45 @@ async function loadStudentList() {
             <td>${s.class_id}</td>
             <td>${s.attendance_rate ? s.attendance_rate+'%' : '-'}</td>
             <td>${s.email || ''}</td>
-            <td><button class="btn-sm btn-permission" onclick='openStudentForm(${JSON.stringify(s)})'>編集</button></td>
+            <td>
+                <button class="btn-sm btn-permission" onclick='openStudentForm(${JSON.stringify(s)})'>編集</button>
+                <button class="btn-sm btn-permission" style="background-color:#17a2b8;" onclick='allowFaceRegistration("${s.student_id}")'>顔許可</button>
+                <button class="btn-sm btn-reset" style="background-color:#ffc107; color:black;" onclick='resetStudentPassword("${s.student_id}")'>PWリセット</button>
+            </td>
         </tr>`;
     });
 }
+
+// 顔登録許可
+window.allowFaceRegistration = async (sid) => {
+    if(!confirm(`${sid} の顔登録を許可しますか？\n(有効期限: 5分間)`)) return;
+    try {
+        const res = await fetch(`${API_BASE_URL}/allow_face_registration`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ student_id: sid })
+        });
+        const d = await res.json();
+        if(d.success) alert(`許可しました。\n有効期限: ${d.expiry}`);
+        else alert("エラー: " + d.message);
+    } catch(e) { console.error(e); alert("通信エラー"); }
+};
+
+// パスワードリセット
+window.resetStudentPassword = async (sid) => {
+    const newPw = prompt(`${sid} の新しいパスワードを入力してください:`);
+    if(newPw === null) return; 
+    if(!newPw) return alert("パスワードを入力してください");
+    
+    try {
+        const res = await fetch(`${API_BASE_URL}/reset_student_password`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ student_id: sid, new_password: newPw })
+        });
+        const d = await res.json();
+        if(d.success) alert("パスワードを変更しました");
+        else alert("エラー: " + d.message);
+    } catch(e) { console.error(e); alert("通信エラー"); }
+};
 
 window.openStudentForm = (s) => {
     const f = document.getElementById('studentForm');
@@ -783,7 +807,8 @@ async function loadAbsence() {
 async function loadChatStudents() {
     const c = document.getElementById('chatClassFilter').value;
     const s = document.getElementById('chatStudentSelect');
-    s.innerHTML = '<option value="">生徒を選択</option>';
+    // ★修正: 「生徒を選択」を無効化して選択不可にする
+    s.innerHTML = '<option value="" disabled selected>生徒を選択</option>';
     const res = await (await fetch(`${API_BASE_URL}/get_student_list?class_id=${c}`)).json();
     if (res.students) {
         res.students.forEach(i => {
@@ -808,7 +833,8 @@ async function loadChatHist() {
 
 async function sendChat() {
     const sid = document.getElementById('chatStudentSelect').value;
-    const txt = document.getElementById('teacherChatInput').value;
+    const txtInput = document.getElementById('teacherChatInput');
+    const txt = txtInput.value.trim();
     const tid = sessionStorage.getItem('user_id');
     if (!sid || !txt) return;
 
@@ -816,7 +842,7 @@ async function sendChat() {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ sender_id: tid, receiver_id: sid, content: txt })
     });
-    document.getElementById('teacherChatInput').value = '';
+    txtInput.value = '';
     loadChatHist();
 }
 
@@ -830,23 +856,39 @@ window.openBroadcast = () => {
 };
 
 async function sendBroadcast() {
-    const txt = document.getElementById('broadcastInput').value;
+    const txtInput = document.getElementById('broadcastInput');
+    const txt = txtInput.value.trim();
     if (!txt) return;
+    
     const ids = [];
     document.querySelectorAll('#broadcastClassCheckboxes input:checked').forEach(c => ids.push(c.value));
     if (ids.length === 0) return alert("クラスを選択してください");
 
-    const tid = sessionStorage.getItem('user_id');
-    await fetch(`${API_BASE_URL}/chat/broadcast`, {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ sender_id: tid, class_ids: ids, content: txt })
-    });
-    alert("送信しました");
-    document.getElementById('broadcastModal').style.display = 'none';
+    const btn = document.getElementById('submitBroadcast'); 
+    const originalText = btn.textContent;
+    btn.disabled = true; 
+    btn.textContent = "送信中...";
+
+    try {
+        const tid = sessionStorage.getItem('user_id');
+        await fetch(`${API_BASE_URL}/chat/broadcast`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ sender_id: tid, class_ids: ids, content: txt })
+        });
+        alert("送信しました");
+        document.getElementById('broadcastModal').style.display = 'none';
+        txtInput.value = ''; 
+    } catch (e) {
+        console.error(e);
+        alert("送信に失敗しました");
+    } finally {
+        btn.disabled = false; 
+        btn.textContent = originalText;
+    }
 }
 
 // ==========================================
-// ▼ CSV一括登録機能 (生徒・時間割)
+// ▼ CSV一括登録機能
 // ==========================================
 window.openCsvModal = () => {
     document.getElementById('csvUploadModal').style.display = 'block';
@@ -864,7 +906,7 @@ window.uploadCsv = async () => {
     const formData = new FormData();
     formData.append('file', input.files[0]);
     
-    const btn = event.target; // クリックされたボタン
+    const btn = event.target; 
     const originalText = btn.textContent;
     btn.disabled = true;
     btn.textContent = "送信中...";
@@ -879,7 +921,7 @@ window.uploadCsv = async () => {
         if (d.success) {
             alert(d.message);
             document.getElementById('csvUploadModal').style.display = 'none';
-            loadStudentList(); // リスト更新
+            loadStudentList(); 
         } else {
             alert("エラー: " + d.message);
         }
@@ -892,7 +934,6 @@ window.uploadCsv = async () => {
     }
 };
 
-// ★追加: 時間割CSV一括登録機能
 window.openSchCsvModal = () => {
     document.getElementById('schCsvModal').style.display = 'block';
     const input = document.getElementById('schCsvInput');
@@ -924,8 +965,8 @@ window.uploadSchCsv = async () => {
         if (d.success) {
             alert(d.message);
             document.getElementById('schCsvModal').style.display = 'none';
-            loadSchedule(); // カレンダーを更新
-            initData(); // マスタ更新
+            loadSchedule(); 
+            initData(); 
         } else {
             alert("エラー: " + d.message);
         }
