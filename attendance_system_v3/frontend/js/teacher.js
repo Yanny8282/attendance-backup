@@ -1,7 +1,7 @@
 const API_BASE_URL = '/api';
 let courses = [], komas = [], students = [], teachers = [], schSel = [], chatTimer = null;
 let editStData = null, editSchData = null, allClassIds = [];
-// ★追加: 選択された「コマ」を保存する配列
+// 選択された「コマ」を保存する配列
 let schSelKomas = [];
 
 // ==========================================
@@ -11,13 +11,11 @@ const checkAuth = () => {
     const tid = sessionStorage.getItem('user_id');
     const role = sessionStorage.getItem('user_role');
     
-    // 'teacher' または 'admin' 以外はリダイレクト
     if (!tid || (role !== 'teacher' && role !== 'admin')) {
         location.replace('../html/index.html');
         return false;
     }
     
-    // 一般教員の場合、教員管理タブを非表示
     if (role === 'teacher') {
         const adminTab = document.getElementById('tab-btn-teacher-crud');
         if (adminTab) adminTab.style.display = 'none';
@@ -201,7 +199,7 @@ function setupEvents() {
 
     bind('showCalendarBtn', loadCalendar);
     bind('stModalSave', saveStatus);
-    bind('stModalDelete', deleteStatus); // 削除ボタン
+    bind('stModalDelete', deleteStatus);
     bind('teacherSendChatButton', sendChat);
     bind('broadcastChatButton', openBroadcast);
     bind('submitBroadcast', sendBroadcast);
@@ -217,7 +215,6 @@ function setupEvents() {
         e.onchange = () => {
             const mc = document.getElementById('multiControls');
             if (mc) mc.style.display = e.value === 'multi' ? 'inline' : 'none';
-            // ★変更: モード変更時に選択状態を完全リセット
             schSel = [];
             schSelKomas = [];
             loadSchedule();
@@ -310,7 +307,7 @@ window.jumpToDetail = async (sid, cid) => {
 };
 
 // ==========================================
-// ▼ カレンダー機能
+// ▼ カレンダー機能 (★修正: グリッド表示化)
 // ==========================================
 async function loadCalStudents() {
     const el = document.getElementById('calClassFilter');
@@ -340,12 +337,14 @@ async function loadCalendar() {
     const bDate = new Date(base);
     let sDate, eDate;
     
+    // 月間表示の場合の範囲計算
     if (type === 'month') {
         sDate = new Date(bDate.getFullYear(), bDate.getMonth(), 1);
         eDate = new Date(bDate.getFullYear(), bDate.getMonth() + 1, 0);
     } else {
+        // 週間表示の場合
         const day = bDate.getDay(); 
-        const diff = bDate.getDate() - day + (day === 0 ? -6 : 1);
+        const diff = bDate.getDate() - day + (day === 0 ? -6 : 1); // 月曜始まりにするならここを調整
         sDate = new Date(bDate.setDate(diff));
         eDate = new Date(bDate.setDate(diff + 6));
     }
@@ -355,33 +354,66 @@ async function loadCalendar() {
     const res = await (await fetch(url)).json();
     
     const con = document.getElementById('calendarContainer');
-    con.innerHTML = '';
     
-    let html = '<div style="display:flex; flex-wrap:wrap; gap:10px;">';
+    // ★修正: common.css の month-calendar クラスを使って7列グリッドにする
+    let html = '<div class="month-calendar">';
+    
+    // 曜日ヘッダー
+    ['日','月','火','水','木','金','土'].forEach(d => {
+        html += `<div class="month-day-header">${d}</div>`;
+    });
+    
+    // 月初めの空白セル (日曜=0 なのでその分だけ空ける)
+    if (type === 'month') {
+        const startDay = sDate.getDay();
+        for(let i=0; i<startDay; i++) {
+            html += '<div class="month-day" style="background:#f9f9f9;"></div>';
+        }
+    }
+
     let cur = new Date(sDate);
     while (cur <= eDate) {
         const dStr = fmt(cur);
         const dayRecs = res.records ? res.records.filter(r => r.attendance_date === dStr) : [];
         
-        let cell = `<div style="border:1px solid #ddd; width:130px; padding:5px; background:${dStr===fmt(new Date())?'#e8f4ff':'white'};">`;
-        cell += `<div style="font-weight:bold; border-bottom:1px solid #eee; margin-bottom:5px;">${dStr}</div>`;
+        // 当日の背景色を少し変える
+        const isToday = (dStr === fmt(new Date()));
+        const bg = isToday ? '#e8f4ff' : 'white';
+
+        let cell = `<div class="month-day" style="background:${bg}; min-height:80px;">`;
+        cell += `<div class="day-number">${cur.getDate()}</div>`;
         
+        // 記録がある場合
         if (dayRecs.length > 0) {
             dayRecs.forEach(r => {
-                const cls = r.status_id === 1 ? 'status-present' : (r.status_id === 2 ? 'status-late' : (r.status_id === 3 ? 'status-absent' : (r.status_id === 5 ? 'bg-norecord' : 'status-early')));
-                cell += `<div class="event-badge ${cls}" onclick="openStatusModal('${r.student_id}','${dStr}',${r.koma},${r.status_id},${r.course_id})">${r.koma}:${r.status_text}</div>`;
+                let cls = '';
+                if(r.status_id === 1) cls = 'bg-present';
+                else if(r.status_id === 2) cls = 'bg-late';
+                else if(r.status_id === 3) cls = 'bg-absent';
+                else if(r.status_id === 4) cls = 'bg-early';
+                else cls = 'bg-norecord';
+                
+                cell += `<div class="mini-badge ${cls}" onclick="openStatusModal('${r.student_id}','${dStr}',${r.koma},${r.status_id},${r.course_id})">${r.koma}:${r.status_text}</div>`;
             });
         } else {
-            cell += `<div style="color:#ccc; font-size:0.8rem;">記録なし</div>`;
-            // 空きコマでも追加できるように
+            // 記録がない場合、空きコマ追加ボタンを表示
+            // cell += `<div style="color:#ccc; font-size:0.8rem; margin-top:5px;">なし</div>`;
+            // 必要に応じてクリックで追加できるようにする
             for(let k=1; k<=4; k++) {
-                 cell += `<div style="color:#ccc; font-size:0.8rem; cursor:pointer;" onclick="openStatusModal('${sid}','${dStr}',${k},5,0)">[+] ${k}限追加</div>`;
+                 // 小さな[+]ボタンを表示して、クリックで追加モーダルを開く
+                 cell += `<div style="color:#999; font-size:0.7rem; cursor:pointer; text-align:right;" onclick="openStatusModal('${sid}','${dStr}',${k},5,0)">+ ${k}限</div>`;
             }
         }
+        
         cell += '</div>';
         html += cell;
+        
         cur.setDate(cur.getDate() + 1);
     }
+    
+    // 末尾の空白埋め（見た目を整えるなら入れる）
+    // ...省略可...
+
     con.innerHTML = html + '</div>';
 }
 
@@ -433,7 +465,7 @@ window.downloadCsv = async () => {
 };
 
 // ==========================================
-// ▼ 時間割管理 (大幅修正部分)
+// ▼ 時間割管理
 // ==========================================
 async function loadSchedule() {
     const cls = document.getElementById('scheduleClassSelect').value;
@@ -457,7 +489,6 @@ async function loadSchedule() {
     while (cur <= eDate) {
         const dStr = `${cur.getFullYear()}-${('0'+(cur.getMonth()+1)).slice(-2)}-${('0'+cur.getDate()).slice(-2)}`;
         
-        // 日付自体の選択状態 (既存)
         const isDaySel = schSel.includes(dStr);
         
         let cell = `<div class="sch-day ${isDaySel?'selected':''}" onclick="toggleSchSelect('${dStr}')" style="border:1px solid #ccc; min-height:80px; padding:5px; position:relative;">`;
@@ -468,13 +499,10 @@ async function loadSchedule() {
             const cName = f ? f.course_name : '-';
             const cId = f ? f.course_id : 0;
 
-            // ★追加: このコマが選択されているかチェック
             const isKomaSel = schSelKomas.some(item => item.date === dStr && item.koma === k);
-            // ★追加: 選択されていたら枠線を赤くしたり背景を変えたりする
             const bgStyle = isKomaSel ? '#ffc107' : (f ? '#d1ecf1' : '#f8f9fa');
             const borderStyle = isKomaSel ? '2px solid #ff0000' : '1px solid #ddd';
             
-            // ★変更: onclick を onSchItemClick に投げる
             cell += `<div class="sch-item" onclick="event.stopPropagation(); onSchItemClick('${dStr}', ${k}, ${cId})" style="font-size:0.8rem; background:${bgStyle}; border:${borderStyle}; margin-top:2px; cursor:pointer; padding:2px;">${k}:${cName}</div>`;
         }
         cell += '</div>';
@@ -484,14 +512,11 @@ async function loadSchedule() {
     con.innerHTML = html + '</div>';
 }
 
-// ★追加: モードに応じたクリック処理の分岐
 window.onSchItemClick = (date, koma, cid) => {
     const mode = document.querySelector('input[name="schMode"]:checked').value;
     if (mode === 'multi') {
-        // 一括モードなら選択状態をトグル
         toggleSchKoma(date, koma);
     } else {
-        // 個別モードなら編集モーダルを開く（既存動作）
         openSchModal(date, koma, cid);
     }
 };
@@ -503,15 +528,14 @@ window.toggleSchSelect = (date) => {
     loadSchedule();
 };
 
-// ★追加: コマ単位の選択トグル処理
 window.toggleSchKoma = (date, koma) => {
     const idx = schSelKomas.findIndex(item => item.date === date && item.koma === koma);
     if (idx > -1) {
-        schSelKomas.splice(idx, 1); // 選択解除
+        schSelKomas.splice(idx, 1);
     } else {
-        schSelKomas.push({ date, koma }); // 選択追加
+        schSelKomas.push({ date, koma });
     }
-    loadSchedule(); // 再描画
+    loadSchedule();
 };
 
 window.openSchModal = (date, koma, cid) => {
@@ -532,7 +556,6 @@ async function saveSingleSch() {
 }
 
 async function applyMultiSch() {
-    // どちらの選択リストも空ならアラート
     if (schSel.length === 0 && schSelKomas.length === 0) return alert("日付またはコマを選択してください");
     
     const cid = document.getElementById('schMultiCourseSelect').value;
@@ -542,14 +565,12 @@ async function applyMultiSch() {
     let updates = [];
     let message = "";
 
-    // A. コマ単位の選択がある場合（優先）
     if (schSelKomas.length > 0) {
         message = `${schSelKomas.length}個の選択したコマをこの授業に変更しますか？`;
         schSelKomas.forEach(item => {
             updates.push({ date: item.date, koma: item.koma, course_id: cid });
         });
     } 
-    // B. 日付単位の選択しかない場合（既存の簡易動作）
     else {
         message = `${schSel.length}日分の全コマ(1-4限)をこの授業にしますか？`;
         schSel.forEach(d => {
@@ -561,7 +582,6 @@ async function applyMultiSch() {
 
     await updateSchedule(cls, updates);
     
-    // 選択状態をリセット
     schSel = [];
     schSelKomas = [];
     loadSchedule();
@@ -586,7 +606,6 @@ async function loadStudentList() {
     const res = await (await fetch(`${API_BASE_URL}/get_student_list?class_id=${f.value}`)).json();
     students = res.students || [];
     
-    // クラス選択肢の更新
     const sel = document.getElementById('crudSClassSelect');
     sel.innerHTML = '<option value="new">＋新規クラス作成</option>';
     allClassIds.forEach(c => {

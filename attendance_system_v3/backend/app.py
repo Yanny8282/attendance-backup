@@ -555,7 +555,9 @@ def chat_history():
     res = execute_query("SELECT sender_id, message_content, DATE_FORMAT(timestamp, '%%Y-%%m-%%d %%H:%%i') as time FROM chat_messages WHERE (sender_id=%s AND receiver_id=%s) OR (sender_id=%s AND receiver_id=%s) ORDER BY timestamp ASC", (u1,u2,u2,u1), fetch=True)
     return jsonify({'success': True, 'messages': res})
 
-# 13. ★新規追加: 生徒一括登録API (CSV読み込み)
+# ==========================================
+# ★修正版: 生徒一括登録API (CSV読み込み)
+# ==========================================
 @app.route(f'{API_BASE_URL}/admin/register_bulk_students', methods=['POST'])
 def register_bulk_students():
     if 'file' not in request.files:
@@ -566,31 +568,63 @@ def register_bulk_students():
         return jsonify({'success': False, 'message': 'ファイルが選択されていません'}), 400
 
     try:
-        # CSVファイルをテキストモードで読み込む
-        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        # 1. ファイルの中身をバイナリとして読み込む
+        file_content = file.stream.read()
+        text_data = ""
+        
+        # 2. 文字コード判定 (UTF-8(BOM付き含む) -> Shift-JIS の順で試す)
+        try:
+            text_data = file_content.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            try:
+                text_data = file_content.decode('cp932') # Windows Excel用
+            except UnicodeDecodeError:
+                return jsonify({'success': False, 'message': '文字コードエラー: CSVをUTF-8またはShift-JISで保存してください'}), 400
+
+        # 3. CSVとして解析
+        stream = io.StringIO(text_data, newline=None)
         csv_input = csv.DictReader(stream)
         
+        # ★追加: 日本語ヘッダー対応マップ
+        header_map = {
+            '学籍番号': 'student_id',
+            '氏名': 'student_name', '名前': 'student_name',
+            'クラス': 'class_id', 'クラスID': 'class_id',
+            'メール': 'email', 'メールアドレス': 'email', 'Email': 'email',
+            'パスワード': 'password',
+            '性別': 'gender',
+            '生年月日': 'birthday', '誕生日': 'birthday'
+        }
+
         count = 0
+        skipped = 0
         
-        # 必須カラム
-        required_cols = ['student_id', 'student_name', 'class_id', 'email', 'password']
-        
-        for row in csv_input:
-            if not all(key in row for key in required_cols):
-                continue 
+        for i, row in enumerate(csv_input):
+            # キーの正規化 (日本語ヘッダーを英語キーに変換)
+            normalized_row = {}
+            for k, v in row.items():
+                k_clean = k.strip() if k else ''
+                new_key = header_map.get(k_clean, k_clean)
+                normalized_row[new_key] = v.strip() if v else ''
 
-            s_id = row['student_id']
-            name = row['student_name']
-            cls = row['class_id']
-            mail = row['email']
-            pw = row['password']
+            # 必須チェック
+            if 'student_id' not in normalized_row or 'student_name' not in normalized_row:
+                skipped += 1
+                continue
+
+            s_id = normalized_row['student_id']
+            name = normalized_row['student_name']
+            cls = normalized_row.get('class_id', '')
+            mail = normalized_row.get('email', '')
+            pw = normalized_row.get('password', s_id) # パスワードがない場合は学籍番号を使用
+            gen = normalized_row.get('gender', None)
+            bd = normalized_row.get('birthday', None)
             
-            # 性別・生年月日を取得（CSVにない場合はNone）
-            gen = row.get('gender')
-            bd = row.get('birthday')
+            if not s_id:
+                skipped += 1
+                continue
 
-            # studentsテーブルへの保存 (性別・生年月日を追加)
-            # UPSERT: 重複時は更新
+            # studentsテーブル (UPSERT)
             sql = """
                 INSERT INTO students 
                 (student_id, student_name, class_id, gender, birthday, email) 
@@ -601,15 +635,20 @@ def register_bulk_students():
             params = (s_id, name, cls, gen, bd, mail, name, cls, gen, bd, mail)
             
             if execute_query(sql, params):
-                # student_authテーブル (パスワード) も更新
                 execute_query("INSERT INTO student_auth (student_id, password) VALUES (%s, %s) ON DUPLICATE KEY UPDATE password=%s", (s_id, pw, pw))
                 count += 1
+            else:
+                skipped += 1
 
-        return jsonify({'success': True, 'message': f'{count}件のデータを登録・更新しました'})
+        msg = f'{count}件 登録・更新しました。'
+        if skipped > 0:
+            msg += f' ({skipped}件スキップ)'
+
+        return jsonify({'success': True, 'message': msg})
 
     except Exception as e:
         print(traceback.format_exc())
-        return jsonify({'success': False, 'message': f'エラーが発生しました: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': f'エラー: {str(e)}'}), 500
 
 # 起動時に一度だけスレッドを開始する仕組みを入れる
 if not any(t.name == 'AutoAbsentThread' for t in threading.enumerate()):
