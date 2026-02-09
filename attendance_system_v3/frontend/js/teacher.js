@@ -199,7 +199,7 @@ function setupEvents() {
 
     bind('showCalendarBtn', loadCalendar);
     bind('stModalSave', saveStatus);
-    bind('stModalDelete', deleteStatus);
+    bind('stModalDelete', deleteStatus); // 削除ボタン
     bind('teacherSendChatButton', sendChat);
     bind('broadcastChatButton', openBroadcast);
     bind('submitBroadcast', sendBroadcast);
@@ -243,7 +243,7 @@ function setupEvents() {
 }
 
 // ==========================================
-// ▼ リアルタイム機能
+// ▼ リアルタイム機能 (★修正: 集計機能追加)
 // ==========================================
 async function loadRealtime() {
     try {
@@ -262,20 +262,52 @@ async function loadRealtime() {
         if (!tb) return;
 
         tb.innerHTML = '';
+        
+        // ★集計用変数の初期化
+        let cPresent = 0;
+        let cLate = 0;
+        let cAbsent = 0;
+        let cNone = 0;
+        let total = 0;
+
         if (d.records) {
             d.records.forEach(r => {
-                const cls = r.attendance_status === '出席' ? 'status-present' : (r.attendance_status === '欠席' ? 'status-absent' : '');
+                total++; // 総数カウント
+
+                // ステータス集計
+                const st = r.attendance_status;
+                if (st === '出席') {
+                    cPresent++;
+                } else if (st === '遅刻' || st === '早退') {
+                    cLate++;
+                } else if (st === '欠席') {
+                    cAbsent++;
+                } else {
+                    // 未出席 または データなし
+                    cNone++;
+                }
+
+                const cls = st === '出席' ? 'status-present' : (st === '欠席' ? 'status-absent' : (st === '遅刻' || st === '早退' ? 'status-late' : ''));
+                
                 tb.innerHTML += `<tr>
                     <td>${r.student_id}</td>
                     <td>${r.student_name}</td>
                     <td>${r.class_id || '-'}</td>
                     <td>${r.course_name}</td>
-                    <td class="${cls}">${r.attendance_status}</td>
+                    <td class="${cls}">${st}</td>
                     <td>${r.time}</td>
                     <td><button onclick="jumpToDetail(${r.student_id},'${r.class_id}')" style="background:#17a2b8;">詳細</button></td>
                 </tr>`;
             });
         }
+
+        // ★集計結果を画面に反映
+        document.getElementById('sumPresent').textContent = cPresent;
+        document.getElementById('sumLate').textContent = cLate;
+        document.getElementById('sumAbsent').textContent = cAbsent;
+        document.getElementById('sumNone').textContent = cNone;
+        document.getElementById('sumTotal').textContent = total;
+
     } catch (e) {
         console.error("Realtime load error:", e);
     }
@@ -777,7 +809,7 @@ async function deleteTeacher() {
 }
 
 // ==========================================
-// ▼ 欠席届 (★修正: グループ化表示)
+// ▼ 欠席届 (グループ化表示)
 // ==========================================
 async function loadAbsence() {
     const d = document.getElementById('absenceDateFilter').value;
@@ -807,7 +839,7 @@ async function loadAbsence() {
             const g = groups[key];
             const rowId = `abs-detail-${idx}`;
             
-            // 概要（例: 3件の連絡 (1限:欠席, 2限:遅刻)）
+            // 概要
             const summary = g.items.map(i => `${i.koma}限:${i.status_name}`).join(', ');
             
             // 親行
@@ -847,7 +879,7 @@ async function loadAbsence() {
     }
 }
 
-// ★追加: 詳細行の開閉トグル関数
+// 詳細行の開閉トグル関数
 window.toggleAbsenceDetail = (rowId, btn) => {
     const row = document.getElementById(rowId);
     if (row.style.display === 'none') {

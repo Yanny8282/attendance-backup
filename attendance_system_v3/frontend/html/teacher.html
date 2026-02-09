@@ -46,6 +46,29 @@
                 <label>クラス: <select id="realtimeClassFilter"></select></label>
                 <button id="refreshRealtime" style="margin-left:auto;">再読み込み</button>
             </div>
+
+            <div class="status-summary-bar">
+                <div class="summary-item item-present">
+                    <span class="lbl">出席</span>
+                    <span class="val" id="sumPresent">0</span>人
+                </div>
+                <div class="summary-item item-late">
+                    <span class="lbl">遅刻/早退</span>
+                    <span class="val" id="sumLate">0</span>人
+                </div>
+                <div class="summary-item item-absent">
+                    <span class="lbl">欠席</span>
+                    <span class="val" id="sumAbsent">0</span>人
+                </div>
+                <div class="summary-item item-none">
+                    <span class="lbl">未記録</span>
+                    <span class="val" id="sumNone">0</span>人
+                </div>
+                <div class="summary-total">
+                    対象生徒数: <span id="sumTotal">0</span>人
+                </div>
+            </div>
+
             <table id="realtimeTable">
                 <thead>
                     <tr><th>学籍番号</th><th>氏名</th><th>クラス</th><th>授業名</th><th>状態</th><th>打刻時刻</th><th>詳細</th></tr>
